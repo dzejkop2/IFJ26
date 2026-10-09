@@ -69,7 +69,7 @@ typedef enum {
 //BONUS
         op_and,
         op_or,
-        op_neg,
+        // op_neg, toto neviem ci tam vlastne v tom zadani je... Spytat sa Kuba
         op_not,
         
     //dataType
@@ -86,10 +86,11 @@ typedef enum {
 
     //sign
         sn_semiColon,
-        sn_Colon,
+        sn_colon,
         sn_comma,
         sn_dot,
         sn_underscore,
+        // sn_quote,
 
     //position
         ps_eof,
@@ -97,8 +98,8 @@ typedef enum {
         ps_dedent,
         ps_newLine,
 //BONUS
-        ps_paraStart,
-        ps_paraEnd,
+        // ps_paraStart,
+        // ps_paraEnd,
     
     //control
 //BONUS
