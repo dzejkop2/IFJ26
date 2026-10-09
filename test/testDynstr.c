@@ -1,7 +1,7 @@
 /**
  * @name ifj26
  * @authors Marek Rzeszoto (xrzeszm00)
- * @file dynamicString.h
+ * @file testDynstr.h
  */
 
 /*
