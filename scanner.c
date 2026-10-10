@@ -49,7 +49,41 @@ static void loadInput(FILE *sourceFile){
     }
 }
 
-// Token getToken(){
+int bufferPeeker(int offset){
+    if ((input.pos + offset) >= input.lenght){
+        return EOF;
+    }
+    else{
+        return (unsigned char)input.loadedInput[input.pos + offset];
+    }
+}
 
-// }
+
+int bufferAdvance(){
+    int peekHelper = bufferPeeker(0);
+    if (peekHelper == EOF){
+        return EOF;
+    }
+    input.pos++;
+    if (peekHelper == '\n') {
+        input.line++;
+        input.col = 1;
+    } else {
+        input.col++;
+    }
+    return peekHelper;   
+}
+
+
+char scanner_ctor(){
+
+}
+
+Token getToken(){
+
+}
   
+
+char scanner_dtor(){
+    
+}
