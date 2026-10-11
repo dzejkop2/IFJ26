@@ -23,7 +23,7 @@ Promnt: Give me test for my new reallocation logic functions (dynStr_ctor, dynSt
 3: "" (len 0)
 */
 int main(void) {
-    DynamicString str;
+    dynamicString str;
     dynStr_ctor(&str);
 
     for (int i = 0; i < 40; i++) {

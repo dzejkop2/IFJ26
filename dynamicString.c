@@ -15,7 +15,7 @@
 
 #define MALLOC_MEM 16
 
-void dynStr_ctor(DynamicString *dynStr){
+void dynStr_ctor(dynamicString *dynStr){
     dynStr->memPointer = malloc(sizeof(char)*MALLOC_MEM);
     if(dynStr->memPointer == NULL){
         error(INTERNAL_ERROR, "DynStr buffer malloc memory failed");
@@ -24,7 +24,7 @@ void dynStr_ctor(DynamicString *dynStr){
     dynStr->capacity = MALLOC_MEM;
 }
 
-void  dynStr_load(DynamicString *dynStr, char input){
+void  dynStr_load(dynamicString *dynStr, char input){
     if(dynStr->currLenght+1 >=dynStr->capacity){
         size_t reallocHelperCapacity = dynStr->capacity * 2;
         char *reallocHelper = realloc(dynStr->memPointer, reallocHelperCapacity);
@@ -38,11 +38,11 @@ void  dynStr_load(DynamicString *dynStr, char input){
     dynStr->currLenght++;
 }
 
-void  dynStr_freeBuff(DynamicString *dynStr){    
+void  dynStr_freeBuff(dynamicString *dynStr){    
     dynStr->currLenght = 0;
 }
 
-char *dynStr_output(const DynamicString *dynStr){
+char *dynStr_output(const dynamicString *dynStr){
     char *mallocHelper = malloc(sizeof(char)*(dynStr->currLenght+1));
     if (mallocHelper==NULL){
         error(INTERNAL_ERROR, "DynStr help buffer malloc memory failed");
@@ -53,7 +53,7 @@ char *dynStr_output(const DynamicString *dynStr){
     return mallocHelper;
 }
 
-void  dynStr_dtor(DynamicString *dynStr){
+void  dynStr_dtor(dynamicString *dynStr){
     dynStr->currLenght = 0;
     dynStr->capacity = 0;
     free(dynStr->memPointer);

@@ -135,5 +135,81 @@ specTokenType specType;
   int col;
 } Token;
 
+typedef struct
+{
+    char * loadedInput;
+    size_t lenght;
+    size_t pos;
+    int col;
+    int line;
+} stdInput;
+
+typedef struct {
+    const char *word;
+    absTokenType absType;
+    specTokenType specType;
+} Keyword;
+
+typedef enum {
+    //start state
+    STATE_START,
+
+    //identifiers
+    STATE_IDENTIFIER,            
+    STATE_UNDERSCORE,            
+
+    // num literals
+    STATE_ZERO,                  
+    STATE_INT,                   
+    STATE_INT_UNDERSCORE,
+    STATE_INT_DOT,
+    STATE_DOUBLE_DOT,            
+    STATE_DOUBLE_FRAC,           
+    STATE_FRAC_UNDERSCORE,
+    STATE_NUM_EXP,
+    STATE_SIGN_NUM_EXP,
+    STATE_DOUBLE_EXP,            
+    STATE_EXP_UNDERSCORE,
+    STATE_DOUBLE_SUFFIX,         
+
+    // strings
+    STATE_QUOTES_START,
+    STATE_QUOTES_BODY,
+    STATE_QUOTES_ESCAPE,
+    STATE_STRING_END,            
+    STATE_STRING_EMPTY,          
+    STATE_MUL_STRING_START,
+    STATE_MUL_STRING_1,
+    STATE_MUL_STRING_2,
+    STATE_MUL_STRING_END,        
+
+    // comments
+    STATE_LINECOMMENT,
+    STATE_BLOCKCOMMENT_MID,
+    STATE_BLOCKCOMMENT_END,
+    STATE_BLOCKCOMMENT_SLASH,
+
+    //operators
+    STATE_ADD,                   
+    STATE_SUB,                   
+    STATE_MUL,                   
+    STATE_DIV,                   
+    STATE_ASSIGN,                
+    STATE_EQUAL,                 
+    STATE_BIGGER_THEN,           
+    STATE_BIGGER_EQUAL,          
+    STATE_LOWER_THEN,            
+    STATE_LOWER_EQUAL,          
+    STATE_ARROW_LEFT,            
+    STATE_NOT,                   
+    STATE_NOT_EQUAL,             
+    STATE_AMP,
+    STATE_PIPE,
+
+    // others
+    STATE_SIGN,                  
+    STATE_NEWLINE,               
+    STATE_EOF                    
+} states;
 
 #endif
