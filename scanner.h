@@ -133,7 +133,7 @@ specTokenType specType;
 } value;
   int line;
   int col;
-} Token;
+} token;
 
 typedef struct
 {
@@ -148,7 +148,7 @@ typedef struct {
     const char *word;
     absTokenType absType;
     specTokenType specType;
-} Keyword;
+} keyword;
 
 typedef enum {
     //start state
@@ -156,7 +156,8 @@ typedef enum {
 
     //identifiers
     STATE_IDENTIFIER,            
-    STATE_UNDERSCORE,            
+    STATE_UNDERSCORE,
+    STATE_MAIN,            
 
     // num literals
     STATE_ZERO,                  
