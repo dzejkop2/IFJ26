@@ -6,6 +6,7 @@
 
 #include "stdio.h"
 #include "stdlib.h"
+#include "string.h"
 #include "scanner.h"
 #include "error.h"
 #include "dynamicString.h"
@@ -14,7 +15,11 @@
 #define KEYWORD_COUNT (sizeof(keywords) / sizeof(keywords[0]))
 
 static stdInput input;
-static dynamicString *dynStr;
+static dynamicString dynStr;
+
+static void storeSign(void);
+static token makeNumber(token helpToken, specTokenType numType);
+static token makeString(token helpToken);
 static const keyword keywords[] = {
     {"import",    abs_keyword,  kw_import},
     {"return",    abs_keyword,  kw_return},
@@ -41,6 +46,9 @@ static const keyword keywords[] = {
     {"List",      abs_reserved, res_list},
     {"match",     abs_reserved, res_match},
     {"type",      abs_reserved, res_type},
+    {"to",        abs_control,  ct_to},
+    {"until",     abs_control,  ct_until},
+    {"by",        abs_control,  ct_by},
     {NULL,        0,            0}
 };
 
@@ -48,9 +56,9 @@ static void loadInput(FILE *sourceFile){
 
     size_t reallocHelperCapacity = REALLOC_MEM;
     input.loadedInput = malloc(reallocHelperCapacity);
-    if (reallocHelperCapacity==NULL){
-    error(INTERNAL_ERROR, "Scanners help buffer realloc memory failed");
-    }   
+    if (input.loadedInput==NULL){
+        error(INTERNAL_ERROR, "Scanners help buffer malloc memory failed");
+    }
     input.lenght = 0;
     input.pos = 0;
     input.line = 1;
@@ -62,7 +70,7 @@ static void loadInput(FILE *sourceFile){
         if (input.lenght == reallocHelperCapacity){
             reallocHelperCapacity = reallocHelperCapacity *2;
             char *reallocHelper = realloc(input.loadedInput, reallocHelperCapacity);
-            if (input.loadedInput==NULL){
+            if (reallocHelper==NULL){
                 error(INTERNAL_ERROR, "Scanners help buffer realloc memory failed");
             }
             input.loadedInput = reallocHelper;
@@ -107,7 +115,9 @@ token getToken(void) {
     token helpToken;
     helpToken.value.word = NULL;
     dynStr_freeBuff(&dynStr);
- 
+    int commentDepth = 0;
+    int newlinePending = 0;
+
     while (1) {
         int currentSign = bufferPeeker(0);
  
@@ -124,24 +134,21 @@ token getToken(void) {
                     helpToken.line = input.line;
                     helpToken.col = input.col;
                     return makeToken(helpToken);
-                } else if (currentSign <= 'A' && currentSign >= 'Z' || currentSign <= 'a' && currentSign >= 'z') {
+                } else if ((currentSign >= 'A' && currentSign <= 'Z') || (currentSign >= 'a' && currentSign <= 'z') || currentSign == '@') {
                     storeSign();
                     state = STATE_IDENTIFIER;
                 } else if (currentSign == '_') {
                     storeSign();
                     state = STATE_UNDERSCORE;
-                }else if (currentSign == '@') {
-                    bufferAdvance();
-                    state = STATE_MAIN;
                 
                 //abs_sign
                 } else if (currentSign == '\n') {
                     bufferAdvance();
-                    helpToken.absType = abs_position;
-                    helpToken.specType = ps_newLine;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
-                    return makeToken(helpToken);
+                    newlinePending = 1;
+                    state = STATE_NEWLINE;
+                } else if (currentSign == '"') {
+                    bufferAdvance();
+                    state = STATE_QUOTES_START;
                 } else if (currentSign == '(') {
                     bufferAdvance();
                     helpToken.absType = abs_bracet;
@@ -220,13 +227,13 @@ token getToken(void) {
                     bufferAdvance();
                     state = STATE_PIPE;
                 } else if (currentSign == '.'){
-                    bufferAdvance();
+                    storeSign();
                     state = STATE_DOUBLE_DOT;
                 } else if (currentSign >= '1' && currentSign <= '9'){
-                    bufferAdvance();
+                    storeSign();
                     state = STATE_INT;
-                } else if (currentSign == 0){
-                    bufferAdvance();
+                } else if (currentSign == '0'){
+                    storeSign();
                     state = STATE_ZERO;
                 }else {
                     error(LEXICAL_ERROR, "Unexpected character");
@@ -239,11 +246,14 @@ token getToken(void) {
                     storeSign();
                 } else {
                     char *word = dynStr_output(&dynStr);
-                    const keyword *keywords = findKeyword(word);
-                    if (keywords != NULL) {
+                    const keyword *foundKeyword = findKeyword(word);
+                    if (foundKeyword != NULL) {
                         free(word);
-                        helpToken.absType = keywords->absType;
-                        helpToken.specType = keywords->specType;
+                        helpToken.absType = foundKeyword->absType;
+                        helpToken.specType = foundKeyword->specType;
+                    } else if (word[0] == '@') {
+                        free(word);
+                        error(LEXICAL_ERROR, "Only '@main' can start with '@'");
                     } else {
                         helpToken.absType = abs_identifier;
                         helpToken.specType = id_idtName;
@@ -268,41 +278,6 @@ token getToken(void) {
                 }
                 break;
  
-            case STATE_MAIN:
-                if (bufferPeeker(0) == 'm') {
-                    bufferAdvance();
-                } else {
-                    error(LEXICAL_ERROR, "Expected 'm' after '@'");
-                }
-
-                if (bufferPeeker(0) == 'a') {
-                    bufferAdvance();
-                } else {
-                    error(LEXICAL_ERROR, "Expected 'a' after '@m'");
-                }
-
-                if (bufferPeeker(0) == 'i') {
-                    bufferAdvance();
-                } else {
-                    error(LEXICAL_ERROR, "Expected 'i' after '@ma'");
-                }
-
-                if (bufferPeeker(0) == 'n') {
-                    bufferAdvance();
-                } else {
-                    error(LEXICAL_ERROR, "Expected 'n' after '@mai'");
-                }
-
-                char nextChar = bufferPeeker(0);
-                if (( (int)currentSign>='0'&& (int)currentSign<='9' || currentSign>='A'&&currentSign<='Z' || currentSign>='a'&&currentSign<='z') || nextChar == '_') {
-                    error(LEXICAL_ERROR, "Unexpected identifier after '@'");
-                }
-                helpToken.absType = abs_keyword;
-                helpToken.specType = kw_main;
-                helpToken.line = input.line;
-                helpToken.col = input.col;
-                break;
-            
             //abs_op
             case STATE_DIV:
                 if (currentSign == '/') {
@@ -310,7 +285,6 @@ token getToken(void) {
                     state = STATE_LINECOMMENT;
                 } else if (currentSign == '*') {
                     bufferAdvance();
-                    int commentDepth;
                     commentDepth = 1;
                     state = STATE_BLOCKCOMMENT_MID;
                 } else {
@@ -414,8 +388,16 @@ token getToken(void) {
             
             //abs_comments
             case STATE_LINECOMMENT:
-                if (currentSign == '\n' || currentSign == EOF) {
-                    state = STATE_START;
+                if (currentSign == EOF) {
+                    if (newlinePending) {
+                        state = STATE_NEWLINE;
+                    } else {
+                        state = STATE_START;
+                    }
+                } else if (currentSign == '\n') {
+                    newlinePending = 1;
+                    bufferAdvance();
+                    state = STATE_NEWLINE;
                 } else {
                     bufferAdvance();
                 }
@@ -442,7 +424,6 @@ token getToken(void) {
                     bufferAdvance();
                 } else if (currentSign == '/') {
                     bufferAdvance();
-                    int commentDepth;
                     commentDepth--;
                     if (commentDepth == 0) {
                         state = STATE_START;
@@ -462,7 +443,6 @@ token getToken(void) {
                     bufferAdvance();
                 } else if (currentSign == '*') {
                     bufferAdvance();
-                    int commentDepth;
                     commentDepth++;
                     state = STATE_BLOCKCOMMENT_MID;
                 } else {
@@ -471,43 +451,238 @@ token getToken(void) {
                 }
                 break;
 
-             case STATE_DOUBLE_DOT:
-                if (currentSign == '.'){
-                     bufferAdvance();
-                    state = STATE_INT_DOT;
+            //abs_position
+            case STATE_NEWLINE:
+                if (currentSign == ' ' || currentSign == '\t' || currentSign == '\n' || currentSign == '\r') {
+                    bufferAdvance();
+                } else if (currentSign == '/' && bufferPeeker(1) == '/') {
+                    state = STATE_LINECOMMENT;
+                } else {
+                    helpToken.absType = abs_position;
+                    helpToken.specType = ps_newLine;
+                    return makeToken(helpToken);
                 }
-                
-             case STATE_ZERO:
-                if (currentSign == '.'){
-                    bufferAdvance();
+                break;
+
+            //num literals
+            case STATE_DOUBLE_DOT:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                    state = STATE_DOUBLE_FRAC;
+                } else {
+                    helpToken.absType = abs_sign;
+                    helpToken.specType = sn_dot;
+                    return makeToken(helpToken);
+                }
+                break;
+
+            case STATE_ZERO:
+                if (currentSign == '.') {
+                    storeSign();
                     state = STATE_INT_DOT;
-                } else if (currentSign == 'e' || currentSign == 'E'){
-                    bufferAdvance();
+                } else if (currentSign == 'e' || currentSign == 'E') {
+                    storeSign();
                     state = STATE_NUM_EXP;
+                } else {
+                    return makeNumber(helpToken, lit_int);
                 }
-                
-             case STATE_INT:  
-                helpToken.absType = abs_literal;
-                helpToken.specType = lit_int;
-                helpToken.line = input.line;
-                helpToken.col = input.col;
-                
-             case STATE_INT_DOT:
-                if (currentSign >= '0' && currentSign <= '9'){
+                break;
+
+            case STATE_INT:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                } else if (currentSign == '_') {
                     bufferAdvance();
-                    if (currentSign >= '0' && currentSign <= '9'){
-                        helpToken.absType = abs_literal;
-                        helpToken.specType = lit_double;
-                        helpToken.line = input.line;
-                        helpToken.col = input.col;
-                    } else if (currentSign == 'e' || currentSign == 'E'){
-                        bufferAdvance();
-                        state = STATE_NUM_EXP;
-                    }
+                    state = STATE_INT_UNDERSCORE;
+                } else if (currentSign == '.') {
+                    storeSign();
+                    state = STATE_INT_DOT;
+                } else if (currentSign == 'e' || currentSign == 'E') {
+                    storeSign();
+                    state = STATE_NUM_EXP;
+                } else {
+                    return makeNumber(helpToken, lit_int);
                 }
+                break;
+
+            case STATE_INT_UNDERSCORE:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                    state = STATE_INT;
+                } else {
+                    error(LEXICAL_ERROR, "Expected digit after '_' in number");
+                }
+                break;
+
+            case STATE_INT_DOT:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                    state = STATE_DOUBLE_FRAC;
+                } else {
+                    error(LEXICAL_ERROR, "Expected digit after '.' in number");
+                }
+                break;
+
+            case STATE_DOUBLE_FRAC:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                } else if (currentSign == '_') {
+                    bufferAdvance();
+                    state = STATE_FRAC_UNDERSCORE;
+                } else if (currentSign == 'e' || currentSign == 'E') {
+                    storeSign();
+                    state = STATE_NUM_EXP;
+                } else if (currentSign == 'd' || currentSign == 'D') {
+                    bufferAdvance();
+                    state = STATE_DOUBLE_SUFFIX;
+                } else {
+                    return makeNumber(helpToken, lit_double);
+                }
+                break;
+
+            case STATE_FRAC_UNDERSCORE:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                    state = STATE_DOUBLE_FRAC;
+                } else {
+                    error(LEXICAL_ERROR, "Expected digit after '_' in number");
+                }
+                break;
+
             case STATE_NUM_EXP:
-                
-                
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                    state = STATE_DOUBLE_EXP;
+                } else if (currentSign == '+' || currentSign == '-') {
+                    storeSign();
+                    state = STATE_SIGN_NUM_EXP;
+                } else {
+                    error(LEXICAL_ERROR, "Expected digit or sign in exponent");
+                }
+                break;
+
+            case STATE_SIGN_NUM_EXP:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                    state = STATE_DOUBLE_EXP;
+                } else {
+                    error(LEXICAL_ERROR, "Expected digit in exponent");
+                }
+                break;
+
+            case STATE_DOUBLE_EXP:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                } else if (currentSign == '_') {
+                    bufferAdvance();
+                    state = STATE_EXP_UNDERSCORE;
+                } else if (currentSign == 'd' || currentSign == 'D') {
+                    bufferAdvance();
+                    state = STATE_DOUBLE_SUFFIX;
+                } else {
+                    return makeNumber(helpToken, lit_double);
+                }
+                break;
+
+            case STATE_EXP_UNDERSCORE:
+                if (currentSign >= '0' && currentSign <= '9') {
+                    storeSign();
+                    state = STATE_DOUBLE_EXP;
+                } else {
+                    error(LEXICAL_ERROR, "Expected digit after '_' in number");
+                }
+                break;
+
+            case STATE_DOUBLE_SUFFIX:
+                return makeNumber(helpToken, lit_double);
+
+            //strings
+            case STATE_QUOTES_START:
+                if (currentSign == '"') {
+                    bufferAdvance();
+                    state = STATE_STRING_EMPTY;
+                } else {
+                    state = STATE_QUOTES_BODY;
+                }
+                break;
+
+            case STATE_QUOTES_BODY:
+                if (currentSign == EOF) {
+                    error(LEXICAL_ERROR, "Unterminated string");
+                } else if (currentSign == '"') {
+                    bufferAdvance();
+                    state = STATE_STRING_END;
+                } else if (currentSign == '\\') {
+                    bufferAdvance();
+                    state = STATE_QUOTES_ESCAPE;
+                } else {
+                    storeSign();
+                }
+                break;
+
+            case STATE_QUOTES_ESCAPE:
+                if (currentSign == 'n') {
+                    dynStr_load(&dynStr, '\n');
+                } else if (currentSign == 'r') {
+                    dynStr_load(&dynStr, '\r');
+                } else if (currentSign == 't') {
+                    dynStr_load(&dynStr, '\t');
+                } else if (currentSign == '"' || currentSign == '\\') {
+                    dynStr_load(&dynStr, (char)currentSign);
+                } else {
+                    error(LEXICAL_ERROR, "Unknown escape sequence in string");
+                }
+                bufferAdvance();
+                state = STATE_QUOTES_BODY;
+                break;
+
+            case STATE_STRING_END:
+                return makeString(helpToken);
+
+            case STATE_STRING_EMPTY:
+                if (currentSign == '"') {
+                    bufferAdvance();
+                    state = STATE_MUL_STRING_START;
+                } else {
+                    return makeString(helpToken);
+                }
+                break;
+
+            case STATE_MUL_STRING_START:
+                if (currentSign == EOF) {
+                    error(LEXICAL_ERROR, "Unterminated multiline string");
+                } else if (currentSign == '"') {
+                    bufferAdvance();
+                    state = STATE_MUL_STRING_1;
+                } else {
+                    storeSign();
+                }
+                break;
+
+            case STATE_MUL_STRING_1:
+                if (currentSign == '"') {
+                    bufferAdvance();
+                    state = STATE_MUL_STRING_2;
+                } else {
+                    dynStr_load(&dynStr, '"');
+                    state = STATE_MUL_STRING_START;
+                }
+                break;
+
+            case STATE_MUL_STRING_2:
+                if (currentSign == '"') {
+                    bufferAdvance();
+                    state = STATE_MUL_STRING_END;
+                } else {
+                    dynStr_load(&dynStr, '"');
+                    dynStr_load(&dynStr, '"');
+                    state = STATE_MUL_STRING_START;
+                }
+                break;
+
+            case STATE_MUL_STRING_END:
+                return makeString(helpToken);
+
             default:
                 error(INTERNAL_ERROR, "Scanner state not implemented");
                 break;
@@ -533,7 +708,7 @@ void skip(){
 }
 
 void scanIdentifier(token helpToken, token newToken, keyword keywords){
-    keyword* keywordsReturnValue = findKeyword(helpToken.value.word);
+    const keyword* keywordsReturnValue = findKeyword(helpToken.value.word);
     if(keywordsReturnValue != NULL){
         newToken.absType = keywordsReturnValue->absType;
         newToken.specType = keywordsReturnValue->specType;
@@ -547,7 +722,27 @@ static void storeSign(void) {
     dynStr_load(&dynStr, (char)bufferAdvance());
 }
 
-keyword *findKeyword(const char *word) {    
+static token makeNumber(token helpToken, specTokenType numType) {
+    char *word = dynStr_output(&dynStr);
+    helpToken.absType = abs_literal;
+    helpToken.specType = numType;
+    if (numType == lit_int) {
+        helpToken.value.num = strtoll(word, NULL, 10);
+    } else {
+        helpToken.value.decNum = strtod(word, NULL);
+    }
+    free(word);
+    return makeToken(helpToken);
+}
+
+static token makeString(token helpToken) {
+    helpToken.absType = abs_literal;
+    helpToken.specType = lit_string;
+    helpToken.value.word = dynStr_output(&dynStr);
+    return makeToken(helpToken);
+}
+
+const keyword *findKeyword(const char *word) {    
     for (int keyWordHelper = 0; keywords[keyWordHelper].word != NULL; keyWordHelper++) {
         if (strcmp(word, keywords[keyWordHelper].word) == 0) {
             return &keywords[keyWordHelper];

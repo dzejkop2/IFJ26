@@ -7,6 +7,8 @@
 #ifndef SCANNER_H
 #define SCANNER_H
 
+#include <stddef.h>
+
 /**
  * @brief Identifies types of absTokenType
  */
@@ -212,5 +214,13 @@ typedef enum {
     STATE_NEWLINE,               
     STATE_EOF                    
 } states;
+
+int bufferPeeker(int offset);
+int bufferAdvance();
+void scannerInit();
+token getToken(void);
+token makeToken(token helpToken);
+const keyword *findKeyword(const char *word);
+void scannerFree();
 
 #endif
