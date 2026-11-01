@@ -66,7 +66,7 @@ typedef struct {
     size_t capacity;
 } astNodeList;
 
-union nodeData {
+typedef union nodeData {
     long long intValue;
     double doubleValue;
     char *stringValue;
@@ -178,7 +178,7 @@ struct astNode {
     astDataType dataType;
     int line;
     int col;
-    union nodeData data;
+    nodeData data;
 };
 
 /**
