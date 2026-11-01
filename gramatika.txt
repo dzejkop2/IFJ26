@@ -1,4 +1,4 @@
-Program     -> kw_import id_idtName sn_dot op_mul ps_newLine GlobalDefs ps_eof
+Program     -> kw_import ifj26 sn_dot op_mul ps_newLine GlobalDefs ps_eof
 GlobalDefs  -> GlobalDef GlobalDefs
 GlobalDefs  -> ε
 GlobalDef   -> kw_main MainEol FunDef
