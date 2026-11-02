@@ -1,0 +1,108 @@
+Program     -> kw_import ifj26 sn_dot op_mul ps_newLine GlobalDefs ps_eof
+GlobalDefs  -> GlobalDef GlobalDefs
+GlobalDefs  -> ε
+GlobalDef   -> kw_main MainEol FunDef
+GlobalDef   -> FunDef
+GlobalDef   -> kw_extension br_start Param br_end ExtBody
+MainEol     -> ps_newLine
+MainEol     -> ε
+ExtBody     -> FunDef
+ExtBody     -> ps_newLine ps_indent FunDef FunDefs ps_dedent ps_newLine
+FunDefs     -> FunDef FunDefs
+FunDefs     -> ε
+
+FunDef      -> kw_def id_idtName ParamLists TypeOpt op_assign Body ps_newLine
+ParamLists  -> br_start Params br_end ParamLists
+ParamLists  -> ε
+Params      -> Param ParamsTail
+Params      -> ε
+ParamsTail  -> sn_comma ParamsRest
+ParamsTail  -> ε
+ParamsRest  -> Param ParamsTail
+ParamsRest  -> ε
+Param       -> id_idtName sn_colon Type
+TypeOpt     -> sn_colon Type
+TypeOpt     -> ε
+Type        -> dt_int
+Type        -> dt_double
+Type        -> dt_string
+Type        -> dt_unit
+Type        -> dt_bool
+
+Body        -> ps_newLine ps_indent Block ps_dedent
+Body        -> Inline
+Block       -> Stmt BlockTail
+BlockTail   -> Stmt BlockTail
+BlockTail   -> ε
+Stmt        -> Simple SimpleTail ps_newLine
+SimpleTail  -> sn_semiColon Simple SimpleTail
+SimpleTail  -> ε
+
+Simple      -> kw_val id_idtName TypeOpt op_assign Value
+Simple      -> kw_var id_idtName TypeOpt op_assign Value
+Simple      -> Inline
+Inline      -> kw_return RetVal
+Inline      -> kw_while Expr kw_do Body
+Inline      -> For
+Inline      -> If
+Inline      -> Expr AssignTail
+AssignTail  -> op_assign Value
+AssignTail  -> ε
+RetVal      -> Value
+RetVal      -> ε
+Value       -> If
+Value       -> Expr
+
+If          -> kw_if Expr kw_then Body ElsePart
+ElsePart    -> kw_else Body
+ElsePart    -> ε
+
+For         -> kw_for ForHeader kw_do Body
+ForHeader   -> Generator Guards
+ForHeader   -> ps_newLine ps_indent Generator ps_newLine GuardLines ps_dedent
+Generator   -> id_idtName ct_arrowLeft Expr RangeOp Expr Step
+RangeOp     -> ct_to
+RangeOp     -> ct_until
+Step        -> ct_by Expr
+Step        -> ε
+Guards      -> kw_if Expr Guards
+Guards      -> ε
+GuardLines  -> kw_if Expr ps_newLine GuardLines
+GuardLines  -> ε
+
+     
+
+E -> id_idtName
+E -> lit_int
+E -> lit_double
+E -> lit_string
+E -> lit_true
+E -> lit_false
+E -> br_start E br_end
+E -> br_start br_end
+E -> E op_add E
+E -> E op_sub E
+E -> E op_mul E
+E -> E op_div E
+E -> E op_lowerThen E
+E -> E op_lowerEqual E
+E -> E op_biggerThen E
+E -> E op_biggerEqual E
+E -> E op_equal E
+E -> E op_notEqual E
+E -> E op_and E
+E -> E op_or E
+E -> op_sub E
+E -> op_add E
+E -> op_not E
+
+E -> id_idtName br_start Args br_end
+E -> E br_start Args br_end
+E -> E sn_dot id_idtName
+E -> E sn_dot id_idtName br_start Args br_end
+Args -> E ArgsTail
+Args -> ε
+ArgsTail -> sn_comma ArgsRest
+ArgsTail -> ε
+ArgsRest -> E ArgsTail
+ArgsRest -> ε
