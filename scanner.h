@@ -106,9 +106,9 @@ typedef enum {
     //control
 //BONUS
         ct_arrowLeft,
-        ct_to,
-        ct_until,
-        ct_by,
+        // ct_to,
+        // ct_until,
+        // ct_by,
     //reserved
         res_case,
         res_class,
@@ -163,12 +163,14 @@ typedef enum {
 
     // num literals
     STATE_ZERO,                  
+    STATE_ZERO_DIGITS,
     STATE_INT,                   
     STATE_INT_UNDERSCORE,
     STATE_INT_DOT,
     STATE_DOUBLE_DOT,            
-    STATE_DOUBLE_FRAC,           
-    STATE_FRAC_UNDERSCORE,
+    STATE_DOUBLE,        
+    STATE_MID_UNDERSCORE,   
+    STATE_DOUBLE_UNDERSCORE,
     STATE_NUM_EXP,
     STATE_SIGN_NUM_EXP,
     STATE_DOUBLE_EXP,            
@@ -191,6 +193,7 @@ typedef enum {
     STATE_BLOCKCOMMENT_MID,
     STATE_BLOCKCOMMENT_END,
     STATE_BLOCKCOMMENT_SLASH,
+    STATE_BLOCKCOMMENT_AFTER_NL,
 
     //operators
     STATE_ADD,                   
@@ -212,15 +215,20 @@ typedef enum {
     // others
     STATE_SIGN,                  
     STATE_NEWLINE,               
+    STATE_SLASH,               
+    STATE_TAB,               
+    STATE_TAB_SLASH,               
+    STATE_TAB_NL_SLASH,               
     STATE_EOF                    
 } states;
 
-int bufferPeeker(int offset);
-int bufferAdvance();
-void scannerInit();
 token getToken(void);
 token makeToken(token helpToken);
 const keyword *findKeyword(const char *word);
-void scannerFree();
+
+int bufferAdvance(void);
+void scannerInit(void);
+void scannerFree(void);
+void scanner_dtor(void);
 
 #endif
