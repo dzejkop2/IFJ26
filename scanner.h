@@ -22,7 +22,8 @@ typedef enum {
     abs_sign,
     abs_position,
     abs_control,
-    abs_reserved
+    abs_reserved,
+    abs_interp,
 } absTokenType;
 
 /**
@@ -71,7 +72,6 @@ typedef enum {
 //BONUS
         op_and,
         op_or,
-        // op_neg, toto neviem ci tam vlastne v tom zadani je... Spytat sa Kuba
         op_not,
         
     //dataType
@@ -115,6 +115,12 @@ typedef enum {
         res_list,
         res_match,
         res_type,
+    //interpolate
+        intp_begin, 
+        intp_part, 
+        intp_exprBegin, 
+        intp_exprEnd, 
+        intp_end,
 } specTokenType;
 
 /**
@@ -212,6 +218,12 @@ typedef enum {
     STATE_AMP,
     STATE_PIPE,
 
+    // interpolates
+    STATE_INTERP_BODY,
+    STATE_INTERP_DOLLAR,
+    STATE_INTERP_ESCAPE,
+    STATE_INTERP_ID,
+    
     // others
     STATE_SIGN,                  
     STATE_NEWLINE,               
@@ -222,7 +234,18 @@ typedef enum {
     STATE_EOF                    
 } states;
 
-token getToken(void);
+//interpolates modes
+typedef enum { 
+    MODE_INTERP, 
+    MODE_INTERP_MULTI, 
+    MODE_EXPR,
+    MODE_NORMAL,
+} mode;
+
+extern const keyword keywords[];
+
+token peekToken(void);
+token getTokenChecked(void);
 token makeToken(token helpToken);
 const keyword *findKeyword(const char *word);
 
@@ -230,5 +253,6 @@ int bufferAdvance(void);
 void scannerInit(void);
 void scannerFree(void);
 void scanner_dtor(void);
+
 
 #endif

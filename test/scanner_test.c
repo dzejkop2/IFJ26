@@ -51,6 +51,7 @@ static const char *absName(absTokenType t) {
         case abs_position:   return "position";
         case abs_control:    return "control";
         case abs_reserved:   return "reserved";
+        case abs_interp:     return "interp";
         default:             return "???";
     }
 }
@@ -112,6 +113,11 @@ static const char *specName(specTokenType t) {
         case res_list:       return "List";
         case res_match:      return "match";
         case res_type:       return "type";
+        case intp_begin:     return "s\"";
+        case intp_part:      return "PART";
+        case intp_exprBegin: return "${";
+        case intp_exprEnd:   return "}";
+        case intp_end:       return "\"";
         default:             return "???";
     }
 }
@@ -219,16 +225,16 @@ int main(int argc, char **argv) {
     printf("---------------------------------------------\n");
 
     for (;;) {
-        token t = getToken();
+        token t = getTokenChecked();
 
         printTableRow(t);
         writeCompact(t);
 
         // the token owns value.word for ID and STRING -> the receiver must free it
-        if (t.specType == lit_string || t.specType == id_idtName) {
+        if (t.specType == id_idtName || t.specType == lit_string || t.specType == intp_part) {
             free(t.value.word);
         }
-
+        
         if (t.specType == ps_eof) {
             break;
         }

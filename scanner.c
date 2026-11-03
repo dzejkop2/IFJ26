@@ -1,7 +1,7 @@
 /**
  * @name ifj26
  * @authors Marek Rzeszoto (xrzeszm00)
- * @file scanner.c
+ * @file scanner.peekerHelper
  */
 
 #include "stdio.h"
@@ -13,6 +13,7 @@
 
 #define REALLOC_MEM 4096
 #define KEYWORD_COUNT (sizeof(keywords) / sizeof(keywords[0]))
+#define MODE_STACK_MAX 64
 
 stdInput input;
 dynamicString dynStr;
@@ -25,18 +26,20 @@ void scanner_dtor(void);
 void indentPush(int spaces);
 void indentResolve(int spaces);
 void storeSign(void);
+void modeInit(void);
 
 int *indentStack;
 size_t indentTop;
 size_t indentCapacity;
 int pendingIndent;
 int pendingDedent;
-int pendingDedent;
 static int lastWasNL = 1;
 static int parenDepth = 0; 
 
 token makeNumber(token helpToken, specTokenType numType);
 token makeString(token helpToken);
+
+//keywords
 const keyword keywords[] = {
     {"import",    abs_keyword,  kw_import},
     {"return",    abs_keyword,  kw_return},
@@ -66,8 +69,45 @@ const keyword keywords[] = {
     {NULL,        0,            0}
 };
 
-void loadInput(FILE *sourceFile){
+//mode stack handler
+static mode modeStack[MODE_STACK_MAX];
+static int modeTop = 0;
 
+void modePush(mode modeHelper) {
+    if (modeTop >= MODE_STACK_MAX) {
+        error(INTERNAL_ERROR, "Interpolation nesting too deep");
+    }
+    modeStack[modeTop++] = modeHelper;
+}
+
+void modeInit(void) {       
+    modeTop = 0;
+    modePush(MODE_NORMAL);          
+}
+
+void modePop(void) {
+    if (modeTop > 1) {              
+        modeTop--;
+    }
+}
+
+mode modeCur(void) { 
+    return modeStack[modeTop - 1]; 
+}
+
+int idType(int typeHelper) {
+    if ((typeHelper >= 'a' && typeHelper <= 'z') || (typeHelper >= 'A' && typeHelper <= 'Z')) {
+        return 1;
+    } else if(typeHelper >= '0' && typeHelper <= '9'){
+        return 2;
+    } else if(typeHelper == '_'){
+        return 3;
+    } else{
+        return 0;
+    }
+}
+
+void loadInput(FILE *sourceFile){
     size_t reallocHelperCapacity = REALLOC_MEM;
     input.loadedInput = malloc(reallocHelperCapacity);
     if (input.loadedInput==NULL){
@@ -89,7 +129,6 @@ void loadInput(FILE *sourceFile){
             }
             input.loadedInput = reallocHelper;
         }
-        
     }
 }
 
@@ -127,9 +166,10 @@ void scannerInit(void){
     pendingIndent = 0;
     pendingDedent = 0;
     indentPush(0);
+    modeInit();
 }
 
-token getToken(void) {
+token getTokenChecked(void) {
     states state = STATE_START;
     states returnState = STATE_START;
     token helpToken;
@@ -141,6 +181,7 @@ token getToken(void) {
     int spaces = 0;
     int tabAtStart = 0;
     int indentDone = 0; 
+    int intpLen =0;
 
     if (pendingDedent > 0 || pendingIndent > 0) {
     helpToken.absType = abs_position;
@@ -157,6 +198,18 @@ token getToken(void) {
     return makeToken(helpToken);
     }
 
+    switch (modeCur()) {
+        case MODE_INTERP:
+        case MODE_INTERP_MULTI:
+            helpToken.line = input.line;   
+            helpToken.col = input.col;
+            state = STATE_INTERP_BODY;
+            break;
+        case MODE_NORMAL:
+        case MODE_EXPR:
+            break;
+    }
+
     while (1) {
         int currentSign = bufferPeeker(0);
  
@@ -168,6 +221,9 @@ token getToken(void) {
                 if (currentSign == ' ' || currentSign == '\t' || currentSign == '\r') {
                     bufferAdvance();            
                 } else if (currentSign == EOF) {
+                    if (modeCur() != MODE_NORMAL) {
+                        error(LEXICAL_ERROR, "Unterminated interpolated string");
+                    }
                     helpToken.absType = abs_position;
                     if (!lastWasNL) {
                         helpToken.specType = ps_newLine;
@@ -206,8 +262,6 @@ token getToken(void) {
                     parenDepth++;
                     helpToken.absType = abs_bracet;
                     helpToken.specType = br_start;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 } else if (currentSign == ')') {
                     if (parenDepth > 0){
@@ -216,50 +270,45 @@ token getToken(void) {
                     bufferAdvance();
                     helpToken.absType = abs_bracet;
                     helpToken.specType = br_end;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
+                    return makeToken(helpToken); 
+                } else if (currentSign == '}') {
+                    if (modeCur() != MODE_EXPR) {
+                        error(LEXICAL_ERROR, "Unexpected '}'");
+                    }
+                    bufferAdvance();
+                    modePop();              
+                    helpToken.absType = abs_interp;
+                    helpToken.specType = intp_exprEnd;
                     return makeToken(helpToken);
                 } else if (currentSign == ',') {
                     bufferAdvance();
                     helpToken.absType = abs_sign;
                     helpToken.specType = sn_comma;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 } else if (currentSign == ':') {
                     bufferAdvance();
                     helpToken.absType = abs_sign;
                     helpToken.specType = sn_colon;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 } else if (currentSign == ';') {
                     bufferAdvance();
                     helpToken.absType = abs_sign;
                     helpToken.specType = sn_semiColon;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 } else if (currentSign == '+') {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_add;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 } else if (currentSign == '-') {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_sub;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 } else if (currentSign == '*') {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_mul;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 } else if (currentSign == '/') {
                     bufferAdvance();
@@ -302,6 +351,23 @@ token getToken(void) {
                     storeSign();
                 } else {
                     char *word = dynStr_output(&dynStr);
+                    
+                    //differentiating betwween s" and s""" notation
+                    if (strcmp(word, "s") == 0 && currentSign == '"') {
+                        free(word);
+                        bufferAdvance();
+                        if (bufferPeeker(0) == '"' && bufferPeeker(1) == '"') {
+                            bufferAdvance();
+                            bufferAdvance();
+                            modePush(MODE_INTERP_MULTI);
+                        } else {
+                            modePush(MODE_INTERP);
+                        }
+                        helpToken.absType = abs_interp;
+                        helpToken.specType = intp_begin;
+                        return makeToken(helpToken);
+                    }
+
                     const keyword *foundKeyword = findKeyword(word);
                     if (foundKeyword != NULL) {
                         free(word);
@@ -315,8 +381,7 @@ token getToken(void) {
                         helpToken.specType = id_idtName;
                         helpToken.value.word = word;
                     }
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
+
                     return makeToken(helpToken);
                 }
                 break;
@@ -328,8 +393,6 @@ token getToken(void) {
                 } else {
                     helpToken.absType = abs_sign;
                     helpToken.specType = sn_underscore;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 }
                 break;
@@ -357,14 +420,10 @@ token getToken(void) {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_equal;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 }
                 helpToken.absType = abs_op;
                 helpToken.specType = op_assign;
-                helpToken.line = input.line;
-                helpToken.col = input.col;
                 return makeToken(helpToken);
  
             case STATE_BIGGER_THEN:
@@ -372,14 +431,10 @@ token getToken(void) {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_biggerEqual;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 }
                 helpToken.absType = abs_op;
                 helpToken.specType = op_biggerThen;
-                helpToken.line = input.line;
-                helpToken.col = input.col;
                 return makeToken(helpToken);
  
             case STATE_LOWER_THEN:
@@ -387,22 +442,16 @@ token getToken(void) {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_lowerEqual;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 }
                 if (currentSign == '-') {
                     bufferAdvance();
                     helpToken.absType = abs_control;
                     helpToken.specType = ct_arrowLeft;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 }
                 helpToken.absType = abs_op;
                 helpToken.specType = op_lowerThen;
-                helpToken.line = input.line;
-                helpToken.col = input.col;
                 return makeToken(helpToken);
  
             case STATE_NOT:
@@ -410,14 +459,10 @@ token getToken(void) {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_notEqual;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 }
                 helpToken.absType = abs_op;
                 helpToken.specType = op_not;
-                helpToken.line = input.line;
-                helpToken.col = input.col;
                 return makeToken(helpToken);
  
             case STATE_AMP:
@@ -425,8 +470,6 @@ token getToken(void) {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_and;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 }
                 error(LEXICAL_ERROR, "Expected '&&'");
@@ -437,8 +480,6 @@ token getToken(void) {
                     bufferAdvance();
                     helpToken.absType = abs_op;
                     helpToken.specType = op_or;
-                    helpToken.line = input.line;
-                    helpToken.col = input.col;
                     return makeToken(helpToken);
                 }
                 error(LEXICAL_ERROR, "Expected '||'");
@@ -553,7 +594,7 @@ token getToken(void) {
                     commentDepth = 1;
                     state = STATE_BLOCKCOMMENT_MID;
                 } else {
-                    error(LEXICAL_ERROR, "Token after multi-line block comment on the same line");
+                    error(LEXICAL_ERROR, "Token after currMulti-line block comment on the same line");
                 }
                 break;
 
@@ -587,6 +628,9 @@ token getToken(void) {
                     returnState = STATE_NEWLINE;
                     state = STATE_BLOCKCOMMENT_MID;
                 } else {
+                    if (modeCur() != MODE_NORMAL) {
+                        error(LEXICAL_ERROR, "Newline inside interpolated expression");
+                    }
                     if (tabAtStart > 0) {
                         error(LEXICAL_ERROR, "Tab in indentation");
                     } if (parenDepth > 0 && currentSign != EOF) {
@@ -850,11 +894,137 @@ token getToken(void) {
             case STATE_MUL_STRING_END:
                 return makeString(helpToken);
 
+
+            //interpolated strings
+            case STATE_INTERP_BODY: {
+                int currMulti = (modeCur() == MODE_INTERP_MULTI);
+                int multiEnd;
+                if(currentSign == EOF || (!currMulti && currentSign == '\n')) {
+                    error(LEXICAL_ERROR, "Unterminated interpolated string");
+                } else if (currentSign == '"') {
+                    if(!currMulti || (bufferPeeker(1) == '"' && bufferPeeker(2) == '"')){
+                        multiEnd = 1;
+                    } else {
+                        multiEnd =0;
+                    } if (!multiEnd) {                
+                        storeSign();
+                        intpLen++;
+                    } else if (intpLen > 0) {    
+                        helpToken.absType = abs_interp;
+                        helpToken.specType = intp_part;
+                        helpToken.value.word = dynStr_output(&dynStr);
+                        return makeToken(helpToken);
+                    } else {
+                        bufferAdvance();
+                        if (currMulti) {
+                            bufferAdvance();
+                            bufferAdvance();
+                        }
+                        modePop();
+                        helpToken.absType = abs_interp;
+                        helpToken.specType = intp_end;
+                        return makeToken(helpToken);
+                    }
+                } else if (currentSign == '$') {
+                    if (bufferPeeker(1) == '$') {      
+                        bufferAdvance();
+                        bufferAdvance();
+                        dynStr_load(&dynStr, '$');
+                        intpLen++;
+                    } else if (intpLen > 0) {          
+                        helpToken.absType = abs_interp;
+                        helpToken.specType = intp_part;
+                        helpToken.value.word = dynStr_output(&dynStr);
+                        return makeToken(helpToken);
+                    } else {
+                        bufferAdvance();
+                        helpToken.line = input.line;
+                        helpToken.col = input.col;
+                        state = STATE_INTERP_DOLLAR;
+                    }
+                } else if (currentSign == '\\' && !currMulti) {
+                    bufferAdvance();
+                    state = STATE_INTERP_ESCAPE;
+                } else {
+                    storeSign();
+                    intpLen++;
+                }
+                break;
+            }
+ 
+            case STATE_INTERP_ESCAPE:
+                if (currentSign == 'n') {
+                    dynStr_load(&dynStr, '\n');
+                } else if (currentSign == 'r') {
+                    dynStr_load(&dynStr, '\r');
+                } else if (currentSign == 't') {
+                    dynStr_load(&dynStr, '\t');
+                } else if (currentSign == '"' || currentSign == '\\') {
+                    dynStr_load(&dynStr, (char)currentSign);
+                } else {
+                    error(LEXICAL_ERROR, "Unknown escape sequence in string");
+                }
+                bufferAdvance();
+                intpLen++;
+                state = STATE_INTERP_BODY;
+                break;
+ 
+            case STATE_INTERP_DOLLAR:
+                if (currentSign == '{') {
+                    bufferAdvance();
+                    modePush(MODE_EXPR);
+                    helpToken.absType = abs_interp;
+                    helpToken.specType = intp_exprBegin;
+                    return makeToken(helpToken);
+                } else if (idType(currentSign) == 1 || idType(currentSign) == 3) {
+                    storeSign();
+                    state = STATE_INTERP_ID;
+                } else {
+                    error(LEXICAL_ERROR, "Expected '$', '{' or identifier after '$'");
+                }
+                break;
+ 
+            case STATE_INTERP_ID:
+                if (idType(currentSign) != 0) {
+                    storeSign();
+                } else {
+                    char *word = dynStr_output(&dynStr);
+                    if (strcmp(word, "_") == 0 || findKeyword(word) != NULL) {
+                        free(word);
+                        error(LEXICAL_ERROR, "Invalid identifier after '$'");
+                    }
+                    helpToken.absType = abs_identifier;
+                    helpToken.specType = id_idtName;
+                    helpToken.value.word = word;
+                    return makeToken(helpToken);
+                }
+                break;
+ 
             default:
                 error(INTERNAL_ERROR, "Scanner state not implemented");
                 break;
         }
     }
+}
+
+
+static token peeked;
+static int hasPeeked = 0;
+
+token peekToken(void) {
+    if (!hasPeeked) {
+        peeked = getTokenChecked();
+        hasPeeked = 1;
+    }
+    return peeked;
+}
+
+token getToken(void) {
+    if (hasPeeked) {
+        hasPeeked = 0;
+        return peeked;
+    }
+    return getTokenChecked();
 }
 
 token makeToken(token helpToken){
