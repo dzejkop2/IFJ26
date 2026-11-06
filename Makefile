@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -pedantic -O2
 TARGET = ifj26
-SRCS = $(wildcard *.c)
+SRCS = $(wildcard *.c) test/tokenDump.c test/astPrint.c
 OBJS = $(SRCS:.c=.o)
 
 .PHONY: build check build-check clean
