@@ -19,7 +19,7 @@ static const char *absName(absTokenType t) {
     }
 }
 
-static const char *specName(specTokenType t) {
+const char *specName(specTokenType t) {
     switch (t) {
         case id_idtName:     return "ID";
         case lit_int:        return "INT";

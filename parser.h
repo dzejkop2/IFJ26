@@ -24,14 +24,14 @@ astNode *parse(void);
 void parserAdvance(void);
 bool parserCheck(specTokenType specType);
 bool parserMatch(specTokenType specType);
-token parserExpect(specTokenType specType, const char *errorMsg);
+//token parserExpect(specTokenType specType, const char *errorMsg);
 
 astNode *parseProgram(void);
 void parseGlobalDefs(astNodeList *defs);
 astNode *parseGlobalDef(void);
 astNode *parseExtension(void);
 void parseExtBody(astNode *extension);
-astNode *parseFuncDef(bool isMain);
+astNode *parseFuncDef(bool isMain, bool isExtension);
 void parseParamLists(astNodeList *paramLists);
 void parseParams(astNodeList *params);
 astNode *parseParam(void);

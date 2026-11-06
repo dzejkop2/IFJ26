@@ -116,8 +116,8 @@ void ast_print(const astNode *node, int depth) {
             fputs(node->data.program.importName ? node->data.program.importName : "(null)", stderr);
             break;
         case AST_FUN_DEF:
-            fprintf(stderr, "FUN_DEF name=%s main=%d ret=%s", node->data.funDef.name,
-                    node->data.funDef.isMain, typeName(node->data.funDef.retType));
+            fprintf(stderr, "FUN_DEF name=%s main=%d ret=%s", node->data.funcDef.name,
+                    node->data.funcDef.isMain, typeName(node->data.funcDef.retType));
             break;
         case AST_EXTENSION: 
             fputs("EXTENSION", stderr);
@@ -197,8 +197,8 @@ void ast_print(const astNode *node, int depth) {
             printList(&node->data.program.defs, depth);
             break;
         case AST_FUN_DEF:
-            printList(&node->data.funDef.paramLists, depth);
-            ast_print(node->data.funDef.body, depth + 1);
+            printList(&node->data.funcDef.paramLists, depth);
+            ast_print(node->data.funcDef.body, depth + 1);
             break;
         case AST_EXTENSION:
             ast_print(node->data.extension.receiver, depth + 1);

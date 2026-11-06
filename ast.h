@@ -83,7 +83,7 @@ typedef union nodeData {
         astDataType retType;
         astNode *body;
         bool isMain;
-    } funDef;
+    } funcDef;
 
     struct {
         astNode *receiver;
@@ -202,7 +202,7 @@ astNode *ast_newNode(astNodeType type, int line, int col);
 void ast_free(astNode *node);
 
 astNode *ast_newProgram(char *importName, int line, int col);
-astNode *ast_newFunDef(char *name, bool isMain, int line, int col);
+astNode *ast_newFuncDef(char *name, bool isMain, int line, int col);
 astNode *ast_newExtension(astNode *receiver, int line, int col);
 astNode *ast_newParamList(int line, int col);
 astNode *ast_newParam(char *name, astDataType type, int line, int col);

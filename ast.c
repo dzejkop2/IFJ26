@@ -72,9 +72,9 @@ void ast_free(astNode *node) {
             freeNodeList(&node->data.program.defs);
             break;
         case AST_FUN_DEF:
-            free(node->data.funDef.name);
-            freeNodeList(&node->data.funDef.paramLists);
-            ast_free(node->data.funDef.body);
+            free(node->data.funcDef.name);
+            freeNodeList(&node->data.funcDef.paramLists);
+            ast_free(node->data.funcDef.body);
             break;
         case AST_EXTENSION:
             ast_free(node->data.extension.receiver);
@@ -162,14 +162,14 @@ astNode *ast_newProgram(char *importName, int line, int col) {
     return node;
 }
 
-astNode *ast_newFunDef(char *name, bool isMain, int line, int col) {
+astNode *ast_newFuncDef(char *name, bool isMain, int line, int col) {
     astNode *node = ast_newNode(AST_FUN_DEF, line, col);
 
-    node->data.funDef.name = name;
-    ast_listInit(&node->data.funDef.paramLists);
-    node->data.funDef.retType = TYPE_NONE;
-    node->data.funDef.body = NULL;
-    node->data.funDef.isMain = isMain;
+    node->data.funcDef.name = name;
+    ast_listInit(&node->data.funcDef.paramLists);
+    node->data.funcDef.retType = TYPE_NONE;
+    node->data.funcDef.body = NULL;
+    node->data.funcDef.isMain = isMain;
 
     return node;
 }
