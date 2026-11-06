@@ -22,7 +22,8 @@ typedef enum {
     abs_sign,
     abs_position,
     abs_control,
-    abs_reserved
+    abs_reserved,
+    abs_interp,
 } absTokenType;
 
 /**
@@ -71,7 +72,6 @@ typedef enum {
 //BONUS
         op_and,
         op_or,
-        // op_neg, toto neviem ci tam vlastne v tom zadani je... Spytat sa Kuba
         op_not,
         
     //dataType
@@ -106,15 +106,21 @@ typedef enum {
     //control
 //BONUS
         ct_arrowLeft,
-        ct_to,
-        ct_until,
-        ct_by,
+        // ct_to,
+        // ct_until,
+        // ct_by,
     //reserved
         res_case,
         res_class,
         res_list,
         res_match,
         res_type,
+    //interpolate
+        intp_begin, 
+        intp_part, 
+        intp_exprBegin, 
+        intp_exprEnd, 
+        intp_end,
 } specTokenType;
 
 /**
@@ -163,12 +169,14 @@ typedef enum {
 
     // num literals
     STATE_ZERO,                  
+    STATE_ZERO_DIGITS,
     STATE_INT,                   
     STATE_INT_UNDERSCORE,
     STATE_INT_DOT,
     STATE_DOUBLE_DOT,            
-    STATE_DOUBLE_FRAC,           
-    STATE_FRAC_UNDERSCORE,
+    STATE_DOUBLE,        
+    STATE_MID_UNDERSCORE,   
+    STATE_DOUBLE_UNDERSCORE,
     STATE_NUM_EXP,
     STATE_SIGN_NUM_EXP,
     STATE_DOUBLE_EXP,            
@@ -191,6 +199,7 @@ typedef enum {
     STATE_BLOCKCOMMENT_MID,
     STATE_BLOCKCOMMENT_END,
     STATE_BLOCKCOMMENT_SLASH,
+    STATE_BLOCKCOMMENT_AFTER_NL,
 
     //operators
     STATE_ADD,                   
@@ -209,18 +218,41 @@ typedef enum {
     STATE_AMP,
     STATE_PIPE,
 
+    // interpolates
+    STATE_INTERP_BODY,
+    STATE_INTERP_DOLLAR,
+    STATE_INTERP_ESCAPE,
+    STATE_INTERP_ID,
+    
     // others
     STATE_SIGN,                  
     STATE_NEWLINE,               
+    STATE_SLASH,               
+    STATE_TAB,               
+    STATE_TAB_SLASH,               
+    STATE_TAB_NL_SLASH,               
     STATE_EOF                    
 } states;
 
-int bufferPeeker(int offset);
-int bufferAdvance();
-void scannerInit();
-token getToken(void);
+//interpolates modes
+typedef enum { 
+    MODE_INTERP, 
+    MODE_INTERP_MULTI, 
+    MODE_EXPR,
+    MODE_NORMAL,
+} mode;
+
+extern const keyword keywords[];
+
+token peekToken(void);
+token getTokenChecked(void);
 token makeToken(token helpToken);
 const keyword *findKeyword(const char *word);
-void scannerFree();
+
+int bufferAdvance(void);
+void scannerInit(void);
+void scannerFree(void);
+void scanner_dtor(void);
+
 
 #endif
