@@ -5,8 +5,9 @@
  */
 
 #include "stack.h"
+#include "error.h"
 #include <stdio.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 void initStack(Stack *s)
 {
@@ -18,38 +19,40 @@ bool isEmpty(Stack *s)
     return s->top == NULL;
 }
 
-void push(Stack *s, char *string)
+void push(Stack *s, exprSymbol data)
 {
     SElem *new_elem_p = (SElem *) malloc(sizeof(SElem));
     if (new_elem_p == NULL)
     {
-        fprintf(stderr, "Error: Could not allocate memory for newElem (SElem).\n");
-        return;
+        error(INTERNAL_ERROR, "Could not allocate memory for newElem (SElem)");
     }
 
-    new_elem_p->name = string;
+    new_elem_p->data = data;
     new_elem_p->next = s->top;
     s->top = new_elem_p;
 }
 
-void pop(Stack *s, char *string)
+exprSymbol pop(Stack *s)
 {
+    exprSymbol data = { 0 };
     SElem *temp_elem_p;
-    if (s->top == NULL)
+    if (s->top != NULL)
     {
         temp_elem_p = s->top;
+        data = temp_elem_p->data;
         s->top = s->top->next;
         free(temp_elem_p);
     }
+
+    return data;
 }
 
-char *top(Stack *s)
+exprSymbol *top(Stack *s)
 {
     if (isEmpty(s))
     {
-        fprintf(stderr, "Stack is empty.\n");
-        return "";
+        return NULL;
     }
 
-    return s->top->name;
+    return &s->top->data;
 }

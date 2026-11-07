@@ -10,12 +10,14 @@
 #include <stdbool.h>
 #include "scanner.h"
 #include "ast.h"
+#include "stack.h"
 
 typedef struct {
     token current;
     astNode **unattached;
     size_t unattachedCount;
     size_t unattachedCapacity;
+    Stack exprStack;    // precedence analysis stack, shared by all (recursive) parseExpr() calls
     bool active;
 } parserState;
 
@@ -31,7 +33,7 @@ void parseGlobalDefs(astNodeList *defs);
 astNode *parseGlobalDef(void);
 astNode *parseExtension(void);
 void parseExtBody(astNode *extension);
-astNode *parseFuncDef(bool isMain, bool isExtension);
+astNode *parseFuncDef(bool isMain);
 void parseParamLists(astNodeList *paramLists);
 void parseParams(astNodeList *params);
 astNode *parseParam(void);
@@ -40,7 +42,7 @@ astDataType parseType(void);
 
 astNode *parseBody(void);
 astNode *parseBlock(void);
-void parseStmt(astNodeList *stmts);
+astNode *parseStmt(void);
 astNode *parseSimple(void);
 astNode *parseInline(void);
 astNode *parseVarDecl(bool isMutable);
