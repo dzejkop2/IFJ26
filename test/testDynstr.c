@@ -3,7 +3,6 @@
  * @authors Marek Rzeszoto (xrzeszm00)
  * @file testDynstr.h
  */
-
 /*
 RunCommand: 
 clang -std=c11 -Wall -Wextra -g test/testDynstr.c dynamicString.c error.c -o test/testDynstr                                                                             ─╯
