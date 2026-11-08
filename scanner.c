@@ -20,21 +20,24 @@ dynamicString dynStr;
 
 int bufferPeeker(int offset);
 int bufferAdvance(void);
-void scannerInit(void);
 void scannerFree(void);
+void scannerInit(void);
 void scanner_dtor(void);
 void indentPush(int spaces);
 void indentResolve(int spaces);
 void storeSign(void);
 void modeInit(void);
+static token peeked;
 
 int *indentStack;
 size_t indentTop;
 size_t indentCapacity;
 int pendingIndent;
 int pendingDedent;
+static int hasPeeked = 0;
 static int lastWasNL = 1;
 static int parenDepth = 0; 
+static int scannerActive = 0;
 
 token makeNumber(token helpToken, specTokenType numType);
 token makeString(token helpToken);
@@ -158,6 +161,11 @@ int bufferAdvance(void){
 
 
 void scannerInit(void){
+    static int atexitTriggered = 0;
+    if (!atexitTriggered) {
+        atexit(scannerFree);
+        atexitTriggered = 1;
+    }
     loadInput(stdin);
     dynStr_ctor(&dynStr);
     indentStack = NULL;
@@ -165,6 +173,7 @@ void scannerInit(void){
     indentCapacity = 0;
     pendingIndent = 0;
     pendingDedent = 0;
+    scannerActive = 1;
     indentPush(0);
     modeInit();
 }
@@ -1007,10 +1016,6 @@ token getTokenChecked(void) {
     }
 }
 
-
-static token peeked;
-static int hasPeeked = 0;
-
 token peekToken(void) {
     if (!hasPeeked) {
         peeked = getTokenChecked();
@@ -1113,11 +1118,34 @@ const keyword *findKeyword(const char *word) {
 
 void scanner_dtor(void){
     free(input.loadedInput); 
+    input.loadedInput = NULL;
 }
 
 void scannerFree(void){
+    if(scannerActive==0){
+        return;
+    }
+    if (hasPeeked==1){
+        tokenFree(&peeked);
+        hasPeeked = 0;
+    }
+    
     scanner_dtor();
     dynStr_dtor(&dynStr);
     free(indentStack);
     indentStack = NULL;
+    indentTop = 0;
+    indentCapacity = 0;
+    pendingIndent = 0;
+    pendingDedent = 0;
+    scannerActive = 0; 
+    lastWasNL = 1;
+    parenDepth = 0;
+}
+
+void tokenFree(token *heapUsingToken){
+    if(heapUsingToken->specType == id_idtName || heapUsingToken->specType == intp_part || heapUsingToken->specType == lit_string){
+        free(heapUsingToken->value.word);
+        heapUsingToken->value.word = NULL;
+    }
 }

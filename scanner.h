@@ -246,12 +246,14 @@ extern const keyword keywords[];
 
 token peekToken(void);
 token getTokenChecked(void);
+token getToken(void);
 token makeToken(token helpToken);
+void tokenFree(token *heapUsingToken);
 const keyword *findKeyword(const char *word);
 
 int bufferAdvance(void);
-void scannerInit(void);
 void scannerFree(void);
+void scannerInit(void);
 void scanner_dtor(void);
 
 
