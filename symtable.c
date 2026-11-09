@@ -102,14 +102,14 @@ AVLNode* createNode(char *name, Type type, int scope, int depth)
     AVLNode *temp_node = (AVLNode*) malloc(sizeof(AVLNode));
     if (temp_node == NULL)
     {
-        fprintf(stderr, "Error: Could not allocate memory for temp_node (AVLNode).\n");
+        fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node (AVLNode).\n");
         return NULL;
     }
 
     temp_node->name = malloc(strlen(name) + 1);
     if (temp_node->name == NULL)
     {
-        fprintf(stderr, "Error: Could not allocate memory for temp_node->name (char *).\n");
+        fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->name (char *).\n");
         free(temp_node);
         return NULL;
     }
@@ -143,6 +143,91 @@ AVLNode* insertNode(AVLNode *root, char *name, Type type, int scope, int depth)
     else
     {
         return root;
+    }
+
+    root->height = 1 + max(getHeight(root->left), getHeight(root->right));
+
+    int bf = getBalanceFactor(root);
+
+    if (bf > 1)
+    {
+        if (getBalanceFactor(root->left) < 0)
+            root->left = leftRotate(root->left);
+        return rightRotate(root);
+    }
+
+    if (bf < -1)
+    {
+        if (getBalanceFactor(root->right) > 0)
+            root->right = rightRotate(root->right);
+        return leftRotate(root);
+    }
+
+    return root;
+}
+
+AVLNode* getSuccessor(AVLNode *node)
+{
+    node = node->right;
+
+    while (node->left != NULL)
+    {
+        node = node->left;
+    }
+
+    return node;
+}
+
+AVLNode* deleteNode(AVLNode *root, char *name)
+{
+    if (root == NULL)
+        return root;
+
+    int res = strcmp(root->name, name);
+    if (res > 0)
+    {
+        root->left = deleteNode(root->left, name);
+    }
+    else if (res < 0)
+    {
+        root->right = deleteNode(root->right, name);
+    }
+    else
+    {
+        AVLNode *temp_node;
+        if (root->left == NULL)
+        {
+            temp_node = root->right;
+            free(root->name);
+            free(root);
+            return temp_node;
+        }
+        else if (root->right == NULL)
+        {
+            temp_node = root->left;
+            free(root->name);
+            free(root);
+            return temp_node;
+        }
+
+        // find inorder successor
+        temp_node = getSuccessor(root);
+
+        char *temp_name = malloc(strlen(temp_node->name) + 1);
+        if (temp_name == NULL)
+        {
+            fprintf(stderr, "Error (deleteNode): Could not allocate memory for temp_name (char *).\n");
+            return root;
+        }
+        free(root->name);
+
+        root->name = temp_name;
+        strcpy(root->name, temp_node->name);
+        root->type = temp_node->type;
+        root->scope = temp_node->scope;
+        root->depth = temp_node->depth;
+
+        root->right = deleteNode(root->right, root->name);
     }
 
     root->height = 1 + max(getHeight(root->left), getHeight(root->right));

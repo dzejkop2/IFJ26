@@ -31,6 +31,6 @@ AVLNode* initTree(void);
 bool isEmpty(AVLNode *root);
 AVLNode* searchNode(AVLNode *root, char *string);
 AVLNode* insertNode(AVLNode *root, char *name, Type type, int scope, int depth);
-AVLNode* deleteNode(AVLNode *node);
+AVLNode* deleteNode(AVLNode *node, char *name);
 
 #endif
