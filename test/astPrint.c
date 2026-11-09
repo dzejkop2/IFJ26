@@ -185,6 +185,9 @@ void ast_print(const astNode *node, int depth) {
         case AST_MEMBER:
             fprintf(stderr, "MEMBER .%s", node->data.member.name);
             break;
+        case AST_INTERP:
+            fputs("INTERP", stderr);
+            break;
     }
 
     if (node->dataType != TYPE_NONE) {
@@ -265,6 +268,9 @@ void ast_print(const astNode *node, int depth) {
             break;
         case AST_MEMBER:
             ast_print(node->data.member.object, depth + 1);
+            break;
+        case AST_INTERP:
+            printList(&node->data.interp.parts, depth);
             break;
     }
 }

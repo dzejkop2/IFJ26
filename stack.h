@@ -11,29 +11,21 @@
 #include "scanner.h"
 #include "ast.h"
 
-/**
- * @brief Kind of a symbol on the stack (used by the precedence analysis)
- */
 typedef enum
 {
-    EXPR_TERM,      // terminal (operator, bracket, operand token, $)
-    EXPR_NONTERM,   // E (already reduced expression)
-    EXPR_HANDLE,    // '<' start of a handle
+    EXPR_TERM,
+    EXPR_NONTERM,
+    EXPR_HANDLE,
 } exprSymbolKind;
 
-/**
- * @brief One symbol stored on the stack
- * @param kind  terminal / nonterminal / handle start
- * @param prec  index into the precedence table (terminals only)
- * @param tok   token the symbol was created from (operator type, line, col)
- * @param node  AST node of an operand / E (not owned by the stack)
- */
+
 typedef struct
 {
     exprSymbolKind kind;
     int prec;
     token tok;
     astNode *node;
+    bool isArgList;
 } exprSymbol;
 
 typedef struct selem_t

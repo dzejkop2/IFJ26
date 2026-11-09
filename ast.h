@@ -40,6 +40,7 @@ typedef enum {
     AST_UNARY_OP,
     AST_CALL,
     AST_MEMBER,
+    AST_INTERP,
 } astNodeType;
 
 /** 
@@ -168,6 +169,10 @@ typedef union nodeData {
         astNode *object;
         char *name;
     } member;
+
+    struct {
+        astNodeList parts;
+    } interp;
 } nodeData;
 
 /**
@@ -226,6 +231,7 @@ astNode *ast_newBinary(specTokenType op, astNode *left, astNode *right, int line
 astNode *ast_newUnary(specTokenType op, astNode *operand, int line, int col);
 astNode *ast_newCall(astNode *callee, int line, int col);
 astNode *ast_newMember(astNode *object, char *name, int line, int col);
+astNode *ast_newInterp(int line, int col);
 
 astDataType ast_typeFromToken(specTokenType specType);
 

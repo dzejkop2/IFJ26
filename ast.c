@@ -148,6 +148,9 @@ void ast_free(astNode *node) {
             ast_free(node->data.member.object);
             free(node->data.member.name);
             break;
+        case AST_INTERP:
+            freeNodeList(&node->data.interp.parts);
+            break;
     }
 
     free(node);
@@ -355,6 +358,14 @@ astNode *ast_newMember(astNode *object, char *name, int line, int col) {
     node->data.member.object = object;
     node->data.member.name = name;
     
+    return node;
+}
+
+astNode *ast_newInterp(int line, int col) {
+    astNode *node = ast_newNode(AST_INTERP, line, col);
+
+    ast_listInit(&node->data.interp.parts);
+
     return node;
 }
 

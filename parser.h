@@ -17,16 +17,40 @@ typedef struct {
     astNode **unattached;
     size_t unattachedCount;
     size_t unattachedCapacity;
-    Stack exprStack;    // precedence analysis stack, shared by all (recursive) parseExpr() calls
+    Stack exprStack;
     bool active;
 } parserState;
+
+typedef enum {
+    PREC_ADD, 
+    PREC_SUB, 
+    PREC_MUL, 
+    PREC_DIV,
+    PREC_LT, 
+    PREC_LE, 
+    PREC_GT, 
+    PREC_GE,
+    PREC_EQ, 
+    PREC_NE,
+    PREC_UPLUS, 
+    PREC_UMINUS,
+    PREC_LBR, 
+    PREC_RBR,
+    PREC_ID,
+    PREC_NOT, 
+    PREC_AND, 
+    PREC_OR,
+    PREC_COMMA,
+    PREC_DOT,
+    PREC_END,
+    PREC_COUNT,
+} precIndex;
 
 astNode *parse(void);
 
 void parserAdvance(void);
 bool parserCheck(specTokenType specType);
 bool parserMatch(specTokenType specType);
-//token parserExpect(specTokenType specType, const char *errorMsg);
 
 astNode *parseProgram(void);
 void parseGlobalDefs(astNodeList *defs);
@@ -49,12 +73,16 @@ astNode *parseVarDecl(bool isMutable);
 astNode *parseReturn(void);
 astNode *parseWhile(void);
 astNode *parseValue(void);
-astNode *parseIf(void);
+astNode *parseIfHead(void);
+astNode *parseIf(bool isValue);
 astNode *parseFor(void);
 void parseForHeader(astNode *forNode);
 void parseGenerator(astNode *forNode);
 void parseGuards(astNodeList *guards);
 void parseGuardLines(astNodeList *guards);
+astNode *parseInterp(void);
+astNode *parseIfExpr(void);
+astNode *parseExprOrIf(void);
 
 astNode *parseExpr(void);
 bool isExprStart(specTokenType specType);
