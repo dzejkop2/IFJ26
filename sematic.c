@@ -9,6 +9,7 @@
 #include "sematic.h"
 #include "error.h"
 #include "ast.h"
+#include "scanner.h"
 
 static void analyzeNode(astNode *node);
 
@@ -22,7 +23,7 @@ static void analyzeNodeList(astNodeList nodeList)
 
 void semanticAnalyze(astNode *root)
 {
-    if (root == NULL || root->type == AST_PROGRAM)
+    if (root == NULL || root->type != AST_PROGRAM)
     {
         error(INTERNAL_ERROR, "Invalid ast root");
     }
@@ -90,21 +91,21 @@ static void analyzeNode(astNode *node)
     case AST_EXPR_STMT:
         analyzeNode(node->data.exprStmt.expr);
         break;
-    case AST_LIT_INT:
-        node->dataType = TYPE_INT;
-        break;
-    case AST_LIT_DOUBLE:
-        node->dataType = TYPE_DOUBLE;
-        break;
-    case AST_LIT_STRING:
-        node->dataType = TYPE_STRING;
-        break;
-    case AST_LIT_BOOL:
-        node->dataType = TYPE_BOOL;
-        break;
-    case AST_LIT_UNIT:
-        node->dataType = TYPE_UNIT;
-        break;
+    // case AST_LIT_INT:
+    //     node->dataType = TYPE_INT;
+    //     break;
+    // case AST_LIT_DOUBLE:
+    //     node->dataType = TYPE_DOUBLE;
+    //     break;
+    // case AST_LIT_STRING:
+    //     node->dataType = TYPE_STRING;
+    //     break;
+    // case AST_LIT_BOOL:
+    //     node->dataType = TYPE_BOOL;
+    //     break;
+    // case AST_LIT_UNIT:
+    //     node->dataType = TYPE_UNIT;
+    //     break;
     case AST_IDENTIFIER:
         // No specific analysis needed for literals and identifiers
         break;
@@ -124,6 +125,193 @@ static void analyzeNode(astNode *node)
         break;
     default:
         error(INTERNAL_ERROR, "Unknown AST node type");
+        break;
+    }
+}
+
+static void analyzeExpr(astNode *node)
+{
+    if (node == NULL)
+    {
+        return;
+    }
+
+    switch (node->type)
+    {
+    case AST_BINARY_OP:
+        analyzeExpr(node->data.binary.left);
+        analyzeExpr(node->data.binary.right);
+        analyzeBinaryOp(node);
+        break;
+    case AST_UNARY_OP:
+        analyzeExpr(node->data.unary.operand);
+        break;
+    case AST_CALL:
+        analyzeExpr(node->data.call.callee);
+        analyzeNodeList(node->data.call.args);
+        break;
+    case AST_MEMBER:
+        analyzeExpr(node->data.member.object);
+        break;
+    case AST_LIT_INT:
+
+        node->dataType = TYPE_INT;
+        break;
+    case AST_LIT_DOUBLE:
+        node->dataType = TYPE_DOUBLE;
+        break;
+    case AST_LIT_STRING:
+        node->dataType = TYPE_STRING;
+        break;
+    case AST_LIT_BOOL:
+        node->dataType = TYPE_BOOL;
+        break;
+    case AST_LIT_UNIT:
+        node->dataType = TYPE_UNIT;
+        break;
+    default:
+        // No specific analysis needed for other expression types
+        break;
+    }
+}
+
+static void analyzeBinaryOp(astNode *node)
+{
+    if (node == NULL || node->type != AST_BINARY_OP)
+    {
+        error(INTERNAL_ERROR, "Invalid binary operation");
+        return;
+    }
+
+    analyzeExpr(node->data.binary.left);
+    analyzeExpr(node->data.binary.right);
+
+    astDataType leftType = node->data.binary.left->dataType;
+    astDataType rightType = node->data.binary.right->dataType;
+    switch (node->data.binary.op)
+    {
+    case op_add:
+        if (leftType == TYPE_STRING && rightType == TYPE_STRING)
+        {
+            node->dataType = TYPE_STRING;
+        }
+        else if (leftType == TYPE_INT && rightType == TYPE_INT)
+        {
+            node->dataType = TYPE_INT;
+        }
+        else if ((leftType == TYPE_DOUBLE && rightType == TYPE_DOUBLE) ||
+                 (leftType == TYPE_DOUBLE && rightType == TYPE_INT) ||
+                 (leftType == TYPE_INT && rightType == TYPE_DOUBLE))
+        {
+            node->dataType = TYPE_DOUBLE;
+        }
+        else
+        {
+            error(SEMANTIC_TYPE_ERROR, "Invalid types for addition");
+        }
+        break;
+    case op_sub:
+    case op_mul:
+    case op_div:
+        if (leftType == TYPE_INT && rightType == TYPE_INT)
+        {
+            node->dataType = TYPE_INT;
+        }
+        else if ((leftType == TYPE_DOUBLE && rightType == TYPE_DOUBLE) ||
+                 (leftType == TYPE_DOUBLE && rightType == TYPE_INT) ||
+                 (leftType == TYPE_INT && rightType == TYPE_DOUBLE))
+        {
+            node->dataType = TYPE_DOUBLE;
+        }
+        else
+        {
+            error(SEMANTIC_TYPE_ERROR, "Invalid types for arithmetic operation");
+        }
+        break;
+
+    case op_equal:
+    case op_notEqual:
+        if (((leftType == TYPE_INT || leftType == TYPE_DOUBLE) &&
+             (rightType == TYPE_INT || rightType == TYPE_DOUBLE)) ||
+            leftType == rightType)
+        {
+            node->dataType = TYPE_BOOL;
+        }
+        else
+        {
+            error(SEMANTIC_TYPE_ERROR, "Invalid types for comparison operation");
+        }
+        break;
+    case op_biggerThen:
+    case op_lowerThen:
+    case op_lowerEqual:
+    case op_biggerEqual:
+        if ((leftType == TYPE_INT || leftType == TYPE_DOUBLE) &&
+            (rightType == TYPE_INT || rightType == TYPE_DOUBLE))
+        {
+            node->dataType = TYPE_BOOL;
+        }
+        else
+        {
+            error(SEMANTIC_TYPE_ERROR, "Invalid types for comparison operation");
+        }
+        break;
+    case op_and:
+    case op_or:
+        if (leftType == TYPE_BOOL && rightType == TYPE_BOOL)
+        {
+            node->dataType = TYPE_BOOL;
+        }
+        else
+        {
+            error(SEMANTIC_TYPE_ERROR, "Invalid types for logical operation");
+        }
+        break;
+    default:
+        // Handle other binary operations as needed
+        break;
+    }
+
+    // Here you can implement type checking for binary operations
+    // For example, if both operands are integers, the result is an integer
+}
+
+static void unaryOp(astNode *node)
+{
+    if (node == NULL || node->type != AST_UNARY_OP)
+    {
+        error(INTERNAL_ERROR, "Invalid unary operation");
+        return;
+    }
+
+    analyzeExpr(node->data.unary.operand);
+
+    astDataType operandType = node->data.unary.operand->dataType;
+
+    switch (node->data.unary.op)
+    {
+    case op_not:
+        if (operandType == TYPE_BOOL)
+        {
+            node->dataType = TYPE_BOOL;
+        }
+        else
+        {
+            error(SEMANTIC_TYPE_ERROR, "Invalid type for logical NOT operation");
+        }
+        break;
+    case op_sub:
+        if (operandType == TYPE_INT || operandType == TYPE_DOUBLE)
+        {
+            node->dataType = operandType; // Result type is the same as operand type
+        }
+        else
+        {
+            error(SEMANTIC_TYPE_ERROR, "Invalid type for unary negation operation");
+        }
+        break;
+    default:
+        // Handle other unary operations as needed
         break;
     }
 }
