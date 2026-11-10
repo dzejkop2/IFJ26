@@ -1,76 +1,116 @@
-Program     -> kw_import ifj26 sn_dot op_mul ps_newLine GlobalDefs ps_eof
-GlobalDefs  -> GlobalDef GlobalDefs
-GlobalDefs  -> ε
-GlobalDef   -> kw_main MainEol FunDef
-GlobalDef   -> FunDef
-GlobalDef   -> kw_extension br_start Param br_end ExtBody
-MainEol     -> ps_newLine
-MainEol     -> ε
-ExtBody     -> FunDef
-ExtBody     -> ps_newLine ps_indent FunDef FunDefs ps_dedent ps_newLine
-FunDefs     -> FunDef FunDefs
-FunDefs     -> ε
+Program      -> Nls kw_import id_idtName("ifj26") sn_dot op_mul ps_newLine Nls GlobalDefs ps_eof
 
-FunDef      -> kw_def id_idtName ParamLists TypeOpt op_assign Body ps_newLine
-ParamLists  -> br_start Params br_end ParamLists
-ParamLists  -> ε
-Params      -> Param ParamsTail
-Params      -> ε
-ParamsTail  -> sn_comma ParamsRest
-ParamsTail  -> ε
-ParamsRest  -> Param ParamsTail
-ParamsRest  -> ε
-Param       -> id_idtName sn_colon Type
-TypeOpt     -> sn_colon Type
-TypeOpt     -> ε
-Type        -> dt_int
-Type        -> dt_double
-Type        -> dt_string
-Type        -> dt_unit
-Type        -> dt_bool
+Nls          -> ps_newLine Nls
+Nls          -> ε
+End          -> ps_newLine
+End          -> sn_semiColon
 
-Body        -> ps_newLine ps_indent Block ps_dedent
-Body        -> Inline
-Block       -> Stmt BlockTail
-BlockTail   -> Stmt BlockTail
-BlockTail   -> ε
-Stmt        -> Simple SimpleTail ps_newLine
-SimpleTail  -> sn_semiColon Simple SimpleTail
-SimpleTail  -> ε
+GlobalDefs   -> GlobalDef Nls GlobalDefs
+GlobalDefs   -> ε
 
-Simple      -> kw_val id_idtName TypeOpt op_assign Value
-Simple      -> kw_var id_idtName TypeOpt op_assign Value
-Simple      -> Inline
-Inline      -> kw_return RetVal
-Inline      -> kw_while Expr kw_do Body
-Inline      -> For
-Inline      -> If
-Inline      -> Expr AssignTail
-AssignTail  -> op_assign Value
-AssignTail  -> ε
-RetVal      -> Value
-RetVal      -> ε
-Value       -> If
-Value       -> Expr
+GlobalDef    -> kw_main Nls FuncDef
+GlobalDef    -> FuncDef
+GlobalDef    -> kw_extension br_start Param br_end ExtBody
 
-If          -> kw_if Expr kw_then Body ElsePart
-ElsePart    -> kw_else Body
-ElsePart    -> ε
+ExtBody      -> FuncDef
+ExtBody      -> ps_newLine ps_indent FuncDef Nls ExtFuncs ps_dedent
+ExtFuncs     -> FuncDef Nls ExtFuncs
+ExtFuncs     -> ε
 
-For         -> kw_for ForHeader kw_do Body
-ForHeader   -> Generator Guards
-ForHeader   -> ps_newLine ps_indent Generator ps_newLine GuardLines ps_dedent
-Generator   -> id_idtName ct_arrowLeft Expr RangeOp Expr Step
-RangeOp     -> ct_to
-RangeOp     -> ct_until
-Step        -> ct_by Expr
-Step        -> ε
-Guards      -> kw_if Expr Guards
-Guards      -> ε
-GuardLines  -> kw_if Expr ps_newLine GuardLines
-GuardLines  -> ε
+FuncDef      -> kw_def id_idtName ParamLists TypeOpt op_assign FunBody
+FunBody      -> ps_newLine ps_indent Block ps_dedent
+FunBody      -> Value
 
-     
+ParamLists   -> br_start Params br_end ParamLists
+ParamLists   -> ε
+Params       -> Param ParamsTail
+Params       -> ε
+ParamsTail   -> sn_comma ParamsRest
+ParamsTail   -> ε
+ParamsRest   -> Param ParamsTail
+ParamsRest   -> ε
+Param        -> id_idtName sn_colon Type
+
+TypeOpt      -> sn_colon Type
+TypeOpt      -> ε
+
+Type         -> dt_int
+Type         -> dt_double
+Type         -> dt_string
+Type         -> dt_unit
+Type         -> dt_bool
+
+Block        -> Nls Stmts
+Stmts        -> Stmt Nls Stmts
+Stmts        -> ε
+
+Body         -> ps_newLine ps_indent Block ps_dedent
+Body         -> Stmt
+
+Stmt         -> kw_var id_idtName TypeOpt op_assign Value
+Stmt         -> kw_val id_idtName TypeOpt op_assign Value
+Stmt         -> kw_return RetVal
+Stmt         -> kw_while Expr kw_do Body
+Stmt         -> If
+Stmt         -> For
+Stmt         -> Expr AssignTail
+
+RetVal       -> Value
+RetVal       -> End
+AssignTail   -> op_assign Value
+AssignTail   -> End
+
+If           -> kw_if Expr kw_then ThenBody
+ThenBody     -> ps_newLine ps_indent Block ps_dedent ElsePart
+ThenBody     -> InlineStmt ThenTail
+ElsePart     -> kw_else Body
+ElsePart     -> ε
+ThenTail     -> kw_else Body
+ThenTail     -> End
+
+InlineStmt   -> kw_return RetExpr
+InlineStmt   -> Expr InlineAssign
+RetExpr      -> Expr
+RetExpr      -> ε
+InlineAssign -> op_assign Expr
+InlineAssign -> ε
+
+For          -> kw_for ForHeader kw_do Body
+ForHeader    -> Generator Guards
+ForHeader    -> ps_newLine ps_indent Generator ps_newLine GuardLines ps_dedent
+Generator    -> id_idtName ct_arrowLeft Expr RangeOp Expr Step
+RangeOp      -> id_idtName("to")
+RangeOp      -> id_idtName("until")
+Step         -> id_idtName("by") Expr
+Step         -> ε
+Guards       -> kw_if Expr Guards
+Guards       -> ε
+GuardLines   -> kw_if Expr ps_newLine GuardLines
+GuardLines   -> ε
+
+Value        -> Expr End
+Value        -> IfValue
+
+IfValue      -> kw_if Expr kw_then IfValThen
+IfValThen    -> ps_newLine ps_indent Block ps_dedent kw_else IfValElse
+IfValThen    -> ExprOrIf kw_else IfValElse
+IfValElse    -> ps_newLine ps_indent Block ps_dedent
+IfValElse    -> Value
+
+ExprOrIf     -> Expr
+ExprOrIf     -> IfExpr
+IfExpr       -> kw_if Expr kw_then ExprOrIf kw_else ExprOrIf
+
+
+Interp      -> intp_begin InterpParts intp_end
+InterpParts -> intp_part InterpParts
+InterpParts -> id_idtName InterpParts
+InterpParts -> intp_exprBegin ExprOrIf intp_exprEnd InterpParts
+InterpParts -> ε
+
+========================================================================================================
+
+Expr -> E
 
 E -> id_idtName
 E -> lit_int
@@ -78,8 +118,9 @@ E -> lit_double
 E -> lit_string
 E -> lit_true
 E -> lit_false
-E -> br_start E br_end
+E -> Interp
 E -> br_start br_end
+E -> br_start E br_end
 E -> E op_add E
 E -> E op_sub E
 E -> E op_mul E
@@ -92,16 +133,15 @@ E -> E op_equal E
 E -> E op_notEqual E
 E -> E op_and E
 E -> E op_or E
-E -> op_sub E
 E -> op_add E
+E -> op_sub E
 E -> op_not E
-
-E -> id_idtName br_start Args br_end
 E -> E br_start Args br_end
 E -> E sn_dot id_idtName
 E -> E sn_dot id_idtName br_start Args br_end
-Args -> E ArgsTail
-Args -> ε
+
+Args     -> E ArgsTail
+Args     -> ε
 ArgsTail -> sn_comma ArgsRest
 ArgsTail -> ε
 ArgsRest -> E ArgsTail
