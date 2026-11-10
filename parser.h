@@ -13,37 +13,37 @@
 #include "stack.h"
 
 typedef struct {
-    token current;
-    astNode **unattached;
-    size_t unattachedCount;
-    size_t unattachedCapacity;
-    Stack exprStack;
-    bool active;
+	token current;
+	astNode **unattached;
+	size_t unattachedCount;
+	size_t unattachedCapacity;
+	Stack exprStack;
+	bool active;
 } parserState;
 
 typedef enum {
-    PREC_ADD, 
-    PREC_SUB, 
-    PREC_MUL, 
-    PREC_DIV,
-    PREC_LT, 
-    PREC_LE, 
-    PREC_GT, 
-    PREC_GE,
-    PREC_EQ, 
-    PREC_NE,
-    PREC_UPLUS, 
-    PREC_UMINUS,
-    PREC_LBR, 
-    PREC_RBR,
-    PREC_ID,
-    PREC_NOT, 
-    PREC_AND, 
-    PREC_OR,
-    PREC_COMMA,
-    PREC_DOT,
-    PREC_END,
-    PREC_COUNT,
+	PREC_ADD,
+	PREC_SUB,
+	PREC_MUL,
+	PREC_DIV,
+	PREC_LT,
+	PREC_LE,
+	PREC_GT,
+	PREC_GE,
+	PREC_EQ,
+	PREC_NE,
+	PREC_UPLUS,
+	PREC_UMINUS,
+	PREC_LBR,
+	PREC_RBR,
+	PREC_ID,
+	PREC_NOT,
+	PREC_AND,
+	PREC_OR,
+	PREC_COMMA,
+	PREC_DOT,
+	PREC_END,
+	PREC_COUNT,
 } precIndex;
 
 astNode *parse(void);
@@ -85,6 +85,5 @@ astNode *parseIfExpr(void);
 astNode *parseExprOrIf(void);
 
 astNode *parseExpr(void);
-bool isExprStart(specTokenType specType);
 
 #endif

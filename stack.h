@@ -11,32 +11,27 @@
 #include "scanner.h"
 #include "ast.h"
 
-typedef enum
-{
-    EXPR_TERM,
-    EXPR_NONTERM,
-    EXPR_HANDLE,
+typedef enum {
+	EXPR_TERM,
+	EXPR_NONTERM,
+	EXPR_HANDLE,
 } exprSymbolKind;
 
-
-typedef struct
-{
-    exprSymbolKind kind;
-    int prec;
-    token tok;
-    astNode *node;
-    bool isArgList;
+typedef struct {
+	exprSymbolKind kind;
+	int prec;
+	token tok;
+	astNode *node;
+	bool isArgList;
 } exprSymbol;
 
-typedef struct selem_t
-{
-    exprSymbol data;
-    struct selem_t *next;
+typedef struct selem_t {
+	exprSymbol data;
+	struct selem_t *next;
 } SElem;
 
-typedef struct stack_t
-{
-    SElem *top;
+typedef struct stack_t {
+	SElem *top;
 } Stack;
 
 void initStack(Stack *s);

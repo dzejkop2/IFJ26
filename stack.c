@@ -9,50 +9,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void initStack(Stack *s)
-{
-    s->top = NULL;
+void initStack(Stack *s) { s->top = NULL; }
+
+bool isEmpty(Stack *s) { return s->top == NULL; }
+
+void push(Stack *s, exprSymbol data) {
+	SElem *newElemP = (SElem *)malloc(sizeof(SElem));
+	if (newElemP == NULL) {
+		error(INTERNAL_ERROR, "Could not allocate memory for newElem (SElem)");
+	}
+
+	newElemP->data = data;
+	newElemP->next = s->top;
+	s->top = newElemP;
 }
 
-bool isEmpty(Stack *s)
-{
-    return s->top == NULL;
+exprSymbol pop(Stack *s) {
+	exprSymbol data = {0};
+	SElem *tempElemP;
+	if (s->top != NULL) {
+		tempElemP = s->top;
+		data = tempElemP->data;
+		s->top = s->top->next;
+		free(tempElemP);
+	}
+
+	return data;
 }
 
-void push(Stack *s, exprSymbol data)
-{
-    SElem *new_elem_p = (SElem *) malloc(sizeof(SElem));
-    if (new_elem_p == NULL)
-    {
-        error(INTERNAL_ERROR, "Could not allocate memory for newElem (SElem)");
-    }
+exprSymbol *top(Stack *s) {
+	if (isEmpty(s)) {
+		return NULL;
+	}
 
-    new_elem_p->data = data;
-    new_elem_p->next = s->top;
-    s->top = new_elem_p;
-}
-
-exprSymbol pop(Stack *s)
-{
-    exprSymbol data = { 0 };
-    SElem *temp_elem_p;
-    if (s->top != NULL)
-    {
-        temp_elem_p = s->top;
-        data = temp_elem_p->data;
-        s->top = s->top->next;
-        free(temp_elem_p);
-    }
-
-    return data;
-}
-
-exprSymbol *top(Stack *s)
-{
-    if (isEmpty(s))
-    {
-        return NULL;
-    }
-
-    return &s->top->data;
+	return &s->top->data;
 }
