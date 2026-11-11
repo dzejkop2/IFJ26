@@ -8,29 +8,35 @@
 #define SYMTABLE_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
-typedef enum {
-    STRING,
-    INT,
-    DOUBLE,
-    UNIT,
-    BOOLEAN
-} Type;
+typedef enum { TYPE_STRING, TYPE_INT, TYPE_DOUBLE, TYPE_UNIT, TYPE_BOOL } Type;
+
+typedef enum { VARIABLE, FUNCTION } nodeType;
+
+typedef struct param_info_t {
+	char *name;
+	Type type;
+	bool is_mutable;
+	nodeType node_type;
+    size_t param_count;
+
+	int scope;
+	int depth;
+} paramInfo;
 
 typedef struct node_t {
-    char *name;
-    Type type;
-    int scope;
-    int depth;
-    struct node_t *left;
-    struct node_t *right;
-    int height;
+    paramInfo params;
+
+	struct node_t *left;
+	struct node_t *right;
+	int height;
 } AVLNode;
 
-AVLNode* initTree(void);
+AVLNode *initTree(void);
 bool isEmpty(AVLNode *root);
-AVLNode* searchNode(AVLNode *root, char *string);
-AVLNode* insertNode(AVLNode *root, char *name, Type type, int scope, int depth);
-AVLNode* deleteNode(AVLNode *node, char *name);
+AVLNode *searchNode(AVLNode *root, char *string);
+AVLNode *insertNode(AVLNode *root, paramInfo params);
+AVLNode *deleteNode(AVLNode *node, char *name);
 
 #endif

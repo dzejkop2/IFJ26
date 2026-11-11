@@ -28,7 +28,7 @@ AVLNode* searchNode(AVLNode *root, char *string)
     int res;
     while (temp_node != NULL)
     {
-        res = strcmp(temp_node->name, string);
+        res = strcmp(temp_node->params.name, string);
 
         if (res == 0)
             break;
@@ -97,7 +97,7 @@ AVLNode* rightRotate(AVLNode *node)
     return temp_node_a;
 }
 
-AVLNode* createNode(char *name, Type type, int scope, int depth)
+AVLNode* createNode(paramInfo params)
 {
     AVLNode *temp_node = (AVLNode*) malloc(sizeof(AVLNode));
     if (temp_node == NULL)
@@ -106,18 +106,21 @@ AVLNode* createNode(char *name, Type type, int scope, int depth)
         return NULL;
     }
 
-    temp_node->name = malloc(strlen(name) + 1);
-    if (temp_node->name == NULL)
+    temp_node->params.name = malloc(strlen(params.name) + 1);
+    if (temp_node->params.name == NULL)
     {
         fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->name (char *).\n");
         free(temp_node);
         return NULL;
     }
 
-    strcpy(temp_node->name, name);
-    temp_node->type = type;
-    temp_node->scope = scope;
-    temp_node->depth = depth;
+    strcpy(temp_node->params.name, params.name);
+    temp_node->params.type = params.type;
+    temp_node->params.is_mutable = params.is_mutable;
+    temp_node->params.node_type = params.node_type;
+    temp_node->params.param_count = params.param_count;
+    temp_node->params.scope = params.scope;
+    temp_node->params.depth = params.depth;
 
     temp_node->height = 1;
     temp_node->left = NULL;
@@ -126,19 +129,19 @@ AVLNode* createNode(char *name, Type type, int scope, int depth)
     return temp_node;
 }
 
-AVLNode* insertNode(AVLNode *root, char *name, Type type, int scope, int depth)
+AVLNode* insertNode(AVLNode *root, paramInfo params)
 {
     if (root == NULL)
-        return createNode(name, type, scope, depth);
+        return createNode(params);
 
-    int res = strcmp(root->name, name);
+    int res = strcmp(root->params.name, params.name);
     if (res > 0)
     {
-        root->left = insertNode(root->left, name, type, scope, depth);
+        root->left = insertNode(root->left, params);
     }
     else if (res < 0)
     {
-        root->right = insertNode(root->right, name, type, scope, depth);
+        root->right = insertNode(root->right, params);
     }
     else
     {
@@ -183,7 +186,7 @@ AVLNode* deleteNode(AVLNode *root, char *name)
     if (root == NULL)
         return root;
 
-    int res = strcmp(root->name, name);
+    int res = strcmp(root->params.name, name);
     if (res > 0)
     {
         root->left = deleteNode(root->left, name);
@@ -198,14 +201,14 @@ AVLNode* deleteNode(AVLNode *root, char *name)
         if (root->left == NULL)
         {
             temp_node = root->right;
-            free(root->name);
+            free(root->params.name);
             free(root);
             return temp_node;
         }
         else if (root->right == NULL)
         {
             temp_node = root->left;
-            free(root->name);
+            free(root->params.name);
             free(root);
             return temp_node;
         }
@@ -213,21 +216,24 @@ AVLNode* deleteNode(AVLNode *root, char *name)
         // find inorder successor
         temp_node = getSuccessor(root);
 
-        char *temp_name = malloc(strlen(temp_node->name) + 1);
+        char *temp_name = malloc(strlen(temp_node->params.name) + 1);
         if (temp_name == NULL)
         {
             fprintf(stderr, "Error (deleteNode): Could not allocate memory for temp_name (char *).\n");
             return root;
         }
-        free(root->name);
+        free(root->params.name);
 
-        root->name = temp_name;
-        strcpy(root->name, temp_node->name);
-        root->type = temp_node->type;
-        root->scope = temp_node->scope;
-        root->depth = temp_node->depth;
+        root->params.name = temp_name;
+        strcpy(root->params.name, temp_node->params.name);
+        root->params.type = temp_node->params.type;
+        root->params.is_mutable = temp_node->params.is_mutable;
+        root->params.node_type = temp_node->params.node_type;
+        root->params.param_count = temp_node->params.param_count;
+        root->params.scope = temp_node->params.scope;
+        root->params.depth = temp_node->params.depth;
 
-        root->right = deleteNode(root->right, root->name);
+        root->right = deleteNode(root->right, root->params.name);
     }
 
     root->height = 1 + max(getHeight(root->left), getHeight(root->right));
