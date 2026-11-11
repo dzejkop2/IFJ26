@@ -24,7 +24,7 @@ static parserState parser;
  * They go to stderr, so they never mix with the generated code on stdout.
  */
 #ifndef PARSER_DEBUG
-#define PARSER_DEBUG 1
+#define PARSER_DEBUG 0
 #endif
 
 #if PARSER_DEBUG
@@ -400,9 +400,18 @@ void parseParams(astNodeList *params) {
 
 	parserListAppend(params, parseParam());
 
-	while (parserMatch(sn_comma)) {
-		if (!parserCheck(id_idtName))
+	while (parserCheck(sn_comma)) {
+		// the scanner swallows newlines inside parentheses, so the only way
+		// to tell whether one followed the comma is to compare line numbers
+		int commaLine = parser.current.line;
+		parserAdvance();
+
+		if (!parserCheck(id_idtName)) {
+			if (parser.current.line == commaLine)
+				error(SYNTAX_ERROR,
+					  "Trailing comma only allowed when a new line follows");
 			break;
+		}
 
 		parserListAppend(params, parseParam());
 	}
@@ -886,6 +895,9 @@ int exprClassify(bool afterOperand, int parenDepth) {
 	case intp_begin:
 		return afterOperand ? PREC_END : PREC_ID;
 
+	case kw_if:
+		return afterOperand ? PREC_END : PREC_ID;
+
 	default:
 		return PREC_END;
 	}
@@ -934,6 +946,12 @@ void exprShift(int prec, bool withHandle) {
 	symbol.tok = parser.current;
 	symbol.node = NULL;
 	symbol.isArgList = false;
+
+	if (prec == PREC_ID && parser.current.specType == kw_if) {
+		symbol.node = parseIfExpr();
+		push(&parser.exprStack, symbol);
+		return;
+	}
 
 	if (prec == PREC_ID) {
 		if (parser.current.specType == intp_begin)
@@ -1022,25 +1040,30 @@ void exprReduce(void) {
 	bool isArgList = false;
 
 	if (count == 1 && exprIsTerm(h[0], PREC_ID)) {
+		// single operand
 		result = h[0]->node;
 	} else if (count == 2 && exprIsTerm(h[0], PREC_LBR) &&
 			   exprIsTerm(h[1], PREC_RBR)) {
+		// Unit -> ()
 		result = parserTrackUnattached(
 			ast_newUnitLit(h[0]->tok.line, h[0]->tok.col));
 	} else if (count == 3 && exprIsTerm(h[0], PREC_LBR) &&
 			   h[1]->kind == EXPR_NONTERM && exprIsTerm(h[2], PREC_RBR)) {
+		// expression in paranthesis -> (expr)
 		exprCheckNotArgList(h[1]);
 		result = h[1]->node;
 	} else if (count == 2 && h[0]->kind == EXPR_TERM &&
 			   h[1]->kind == EXPR_NONTERM &&
 			   (h[0]->prec == PREC_UPLUS || h[0]->prec == PREC_UMINUS ||
 				h[0]->prec == PREC_NOT)) {
+		// unary operator
 		exprCheckNotArgList(h[1]);
 		result = parserTrackUnattached(ast_newUnary(
 			h[0]->tok.specType, h[1]->node, h[0]->tok.line, h[0]->tok.col));
 		parserMarkAttached(h[1]->node);
 	} else if (count == 3 && h[0]->kind == EXPR_NONTERM &&
 			   exprIsTerm(h[1], PREC_COMMA) && h[2]->kind == EXPR_NONTERM) {
+		// argument list
 		exprCheckNotArgList(h[2]);
 		if (h[0]->isArgList) {
 			result = h[0]->node;
@@ -1053,6 +1076,10 @@ void exprReduce(void) {
 		isArgList = true;
 	} else if (count == 2 && h[0]->kind == EXPR_NONTERM &&
 			   exprIsTerm(h[1], PREC_COMMA) && parserCheck(br_end)) {
+		// trailing comma check for arguments
+		if (parser.current.line == h[1]->tok.line)
+			error(SYNTAX_ERROR,
+				  "Trailing comma only allowed when a new line follows");
 		if (h[0]->isArgList) {
 			result = h[0]->node;
 		} else {
@@ -1064,6 +1091,7 @@ void exprReduce(void) {
 	} else if (count == 3 && h[0]->kind == EXPR_NONTERM &&
 			   h[1]->kind == EXPR_TERM && h[2]->kind == EXPR_NONTERM &&
 			   exprIsBinaryOp(h[1]->prec)) {
+		// binary operation
 		exprCheckNotArgList(h[0]);
 		exprCheckNotArgList(h[2]);
 		result = parserTrackUnattached(
@@ -1075,6 +1103,7 @@ void exprReduce(void) {
 			   (exprIsTerm(h[0], PREC_ID) || h[0]->kind == EXPR_NONTERM) &&
 			   exprIsTerm(h[1], PREC_LBR) &&
 			   exprIsTerm(h[count - 1], PREC_RBR)) {
+		// function calls
 		exprCheckNotArgList(h[0]);
 		if (exprIsTerm(h[0], PREC_ID) && h[0]->node->type != AST_IDENTIFIER)
 			error(SYNTAX_ERROR, "Only a function can be called");
@@ -1083,19 +1112,28 @@ void exprReduce(void) {
 							  h[1]->tok.line, h[1]->tok.col);
 	} else if (count == 3 && h[0]->kind == EXPR_NONTERM &&
 			   exprIsTerm(h[1], PREC_DOT) && h[2]->kind == EXPR_NONTERM) {
+		// member access -> foo . foo
 		exprCheckNotArgList(h[0]);
 		exprCheckNotArgList(h[2]);
 		astNode *right = h[2]->node;
+		
+		// member access after argLists
+		astNode *innerCall = right;
+		while (innerCall->type == AST_CALL &&
+			   innerCall->data.call.callee != NULL &&
+			   innerCall->data.call.callee->type == AST_CALL)
+			innerCall = innerCall->data.call.callee;
 
-		if (right->type == AST_CALL && right->data.call.callee != NULL &&
-			right->data.call.callee->type == AST_IDENTIFIER) {
-			astNode *callee = right->data.call.callee;
-			right->data.call.callee = NULL;
+		if (innerCall->type == AST_CALL &&
+			innerCall->data.call.callee != NULL &&
+			innerCall->data.call.callee->type == AST_IDENTIFIER) {
+			astNode *callee = innerCall->data.call.callee;
+			innerCall->data.call.callee = NULL;
 			parserTrackUnattached(callee);
 
 			astNode *member = exprMakeMember(h[0]->node, callee, h[1]->tok.line,
 											 h[1]->tok.col);
-			right->data.call.callee = parserMarkAttached(member);
+			innerCall->data.call.callee = parserMarkAttached(member);
 			result = right;
 		} else {
 			result = exprMakeMember(h[0]->node, right, h[1]->tok.line,
