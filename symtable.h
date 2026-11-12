@@ -9,28 +9,35 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-
-typedef enum { TYPE_STRING, TYPE_INT, TYPE_DOUBLE, TYPE_UNIT, TYPE_BOOL } Type;
+#include "ast.h"
 
 typedef enum { VARIABLE, FUNCTION } nodeType;
 
 typedef struct param_info_t {
-	char *name;
-	Type type;
-	bool is_mutable;
-	nodeType node_type;
-    size_t param_count;
+    char *name;
+    astDataType type;
+    bool is_mutable;
+} argInfo;
 
-	int scope;
-	int depth;
+typedef struct node_param_t {
+    char *name;
+    astDataType type;
+    nodeType node_type;
+    bool is_mutable;
+
+    size_t param_count;
+    argInfo *param_list;
+
+    int scope;
+    int depth;
 } paramInfo;
 
 typedef struct node_t {
     paramInfo params;
 
-	struct node_t *left;
-	struct node_t *right;
-	int height;
+    struct node_t *left;
+    struct node_t *right;
+    int height;
 } AVLNode;
 
 AVLNode *initTree(void);

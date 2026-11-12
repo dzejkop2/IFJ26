@@ -109,7 +109,7 @@ AVLNode* createNode(paramInfo params)
     temp_node->params.name = malloc(strlen(params.name) + 1);
     if (temp_node->params.name == NULL)
     {
-        fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->name (char *).\n");
+        fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->params.name (char *).\n");
         free(temp_node);
         return NULL;
     }
@@ -117,10 +117,51 @@ AVLNode* createNode(paramInfo params)
     strcpy(temp_node->params.name, params.name);
     temp_node->params.type = params.type;
     temp_node->params.is_mutable = params.is_mutable;
-    temp_node->params.node_type = params.node_type;
     temp_node->params.param_count = params.param_count;
+    temp_node->params.node_type = params.node_type;
     temp_node->params.scope = params.scope;
     temp_node->params.depth = params.depth;
+
+    if (params.node_type == VARIABLE)
+    {
+        temp_node->params.param_count = 0;
+        temp_node->params.param_list = NULL;
+    }
+    else if (params.node_type == FUNCTION)
+    {
+        temp_node->params.param_list = malloc(sizeof(argInfo) * params.param_count);
+        if (temp_node->params.param_list == NULL)
+        {
+            fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->params.param_list (argInfo *).\n");
+            free(temp_node->params.name);
+            free(temp_node);
+            return NULL;
+        }
+
+        for (size_t i = 0; i < params.param_count; i++)
+        {
+            temp_node->params.param_list[i].is_mutable = params.param_list[i].is_mutable;
+            temp_node->params.param_list[i].type = params.param_list[i].type;
+
+            temp_node->params.param_list[i].name = malloc(strlen(params.param_list[i].name) + 1);
+            if (temp_node->params.param_list[i].name == NULL)
+            {
+                fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->params.param_list->name (char *).\n");
+
+                for (size_t j = 0; j < i; j++)
+                {
+                    free(temp_node->params.param_list[j].name);
+                }
+
+                free(temp_node->params.param_list);
+                free(temp_node->params.name);
+                free(temp_node);
+                return NULL;
+            }
+
+            strcpy(temp_node->params.param_list[i].name, params.param_list[i].name);
+        }
+    }
 
     temp_node->height = 1;
     temp_node->left = NULL;
