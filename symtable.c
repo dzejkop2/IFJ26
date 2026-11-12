@@ -129,37 +129,44 @@ AVLNode* createNode(paramInfo params)
     }
     else if (params.node_type == FUNCTION)
     {
-        temp_node->params.param_list = malloc(sizeof(argInfo) * params.param_count);
-        if (temp_node->params.param_list == NULL)
+        if (params.param_count != 0)
         {
-            fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->params.param_list (argInfo *).\n");
-            free(temp_node->params.name);
-            free(temp_node);
-            return NULL;
-        }
-
-        for (size_t i = 0; i < params.param_count; i++)
-        {
-            temp_node->params.param_list[i].is_mutable = params.param_list[i].is_mutable;
-            temp_node->params.param_list[i].type = params.param_list[i].type;
-
-            temp_node->params.param_list[i].name = malloc(strlen(params.param_list[i].name) + 1);
-            if (temp_node->params.param_list[i].name == NULL)
+            temp_node->params.param_list = malloc(sizeof(argInfo) * params.param_count);
+            if (temp_node->params.param_list == NULL)
             {
-                fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->params.param_list->name (char *).\n");
-
-                for (size_t j = 0; j < i; j++)
-                {
-                    free(temp_node->params.param_list[j].name);
-                }
-
-                free(temp_node->params.param_list);
+                fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->params.param_list (argInfo *).\n");
                 free(temp_node->params.name);
                 free(temp_node);
                 return NULL;
             }
 
-            strcpy(temp_node->params.param_list[i].name, params.param_list[i].name);
+            for (size_t i = 0; i < params.param_count; i++)
+            {
+                temp_node->params.param_list[i].is_mutable = params.param_list[i].is_mutable;
+                temp_node->params.param_list[i].type = params.param_list[i].type;
+
+                temp_node->params.param_list[i].name = malloc(strlen(params.param_list[i].name) + 1);
+                if (temp_node->params.param_list[i].name == NULL)
+                {
+                    fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->params.param_list->name (char *).\n");
+
+                    for (size_t j = 0; j < i; j++)
+                    {
+                        free(temp_node->params.param_list[j].name);
+                    }
+
+                    free(temp_node->params.param_list);
+                    free(temp_node->params.name);
+                    free(temp_node);
+                    return NULL;
+                }
+
+                strcpy(temp_node->params.param_list[i].name, params.param_list[i].name);
+            }
+        }
+        else
+        {
+            temp_node->params.param_list = NULL;
         }
     }
 
