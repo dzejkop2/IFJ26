@@ -1,6 +1,7 @@
 #include "parser.h"
 #include "test/astPrint.h"
 #include "test/tokenDump.h"
+#include "semantic.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +13,9 @@ void usage(const char *prog) {
 			"Options:\n"
 			"  -t, --tokens     Dump tokens from lexer\n"
 			"  -a, --ast        Print AST\n"
-			"  -p, --parse      Parse (default if no explicit flags)\n",
+			"  -p, --parse      Parse (default if no explicit flags)\n"
+			"  -s, --semantic   Analysis semantic\n",
+
 			prog);
 }
 
@@ -20,6 +23,7 @@ int main(int argc, char *argv[]) {
 	bool flagTokens = false;
 	bool flagAST = false;
 	bool flagParse = false;
+	bool flagSemantic = false;
 
 	for (int i = 1; i < argc; ++i) {
 		if (strcmp(argv[i], "-t") == 0)
@@ -28,6 +32,8 @@ int main(int argc, char *argv[]) {
 			flagAST = true;
 		else if (strcmp(argv[i], "-p") == 0)
 			flagParse = true;
+		else if (strcmp(argv[i], "-s") == 0)
+			flagSemantic = true;
 		else {
 			fprintf(stderr, "Unknown option: %s\n", argv[i]);
 			usage(argv[0]);
@@ -45,6 +51,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (flagAST) {
+	}
+
+	if (flagSemantic) {
+
+		astNode *root = parse();
+		semanticAnalyze(root);
 	}
 
 	return 0;
