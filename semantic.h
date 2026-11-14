@@ -21,6 +21,7 @@ typedef struct Scope {
 
 	int id;
 	int depth;
+	astNode *closingFunction;
 } Scope;
 
 typedef struct FunctionInfo {

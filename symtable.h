@@ -9,42 +9,41 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "ast.h"
 
-typedef enum { STRING, INT, DOUBLE, UNIT, BOOLEAN } Type;
+typedef enum { VARIABLE, FUNCTION } nodeType;
 
-typedef enum {
-	VARIABLE,
-	FUNCTION,
-} nodeType;
-
-typedef struct {
+typedef struct param_info_t {
 	char *name;
-	Type type;
-} parameterInfo;
+	astDataType type;
+	bool is_mutable;
+} argInfo;
 
-typedef struct {
-	parameterInfo *params;
-	size_t paramCount;
-} functionInfo;
-
-typedef struct node_t {
+typedef struct node_param_t {
 	char *name;
-	Type type;
+	astDataType type;
+	nodeType node_type;
+	bool is_mutable;
+
+	size_t param_count;
+	argInfo *param_list;
+
 	int scope;
 	int depth;
-	bool isMutable;
+} paramInfo;
+
+typedef struct node_t {
+	paramInfo params;
+
 	struct node_t *left;
 	struct node_t *right;
 	int height;
-
-	nodeType nodeType;
-	functionInfo function;
 } AVLNode;
 
 AVLNode *initTree(void);
-bool isEmpty(AVLNode *root);
+bool symtableIsEmpty(AVLNode *root);
 AVLNode *searchNode(AVLNode *root, char *string);
-AVLNode *insertNode(AVLNode *root, char *name, Type type, int scope, int depth);
+AVLNode *insertNode(AVLNode *root, paramInfo params);
 AVLNode *deleteNode(AVLNode *node, char *name);
 
 #endif

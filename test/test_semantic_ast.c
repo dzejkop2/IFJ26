@@ -168,6 +168,12 @@ static const Group groups[] = {
 	 BONUS,
 	 {"call known extension member", "access unknown member",
 	  "member call on expression receiver"}},
+	{"AST_INTERP",
+	 AST_INTERP,
+	 BONUS,
+	 {"interpolated string with valid identifier",
+	  "interpolation with undefined identifier",
+	  "interpolation with arithmetic expression"}},
 };
 
 #define GROUP_COUNT (sizeof(groups) / sizeof(groups[0]))
@@ -229,6 +235,14 @@ static void add(astNodeList *list, astNode *child) {
 }
 static void stmt(astNode *b, astNode *child) {
 	add(&b->data.block.stmts, child);
+}
+
+static astNode *interp(void) {
+	astNode *node = ast_newNode(AST_INTERP, 1, 1);
+
+	ast_listInit(&node->data.interp.parts);
+
+	return node;
 }
 
 static astNode *program(void) {
@@ -561,7 +575,34 @@ static astNode *build(astNodeType kind, TestMode mode) {
 			stmt(mainBlock(p), statement(ast_newCall(e, 1, 1)));
 		}
 		return p;
+	case AST_INTERP:
+		p = program();
+		b = mainBlock(p);
 
+		e = interp();
+
+		if (mode == PASS) {
+			// val name: String = "IFJ"
+			stmt(b, decl("name", TYPE_STRING, string("IFJ"), false));
+
+			// s"Hello $name"
+			add(&e->data.interp.parts, string("Hello "));
+			add(&e->data.interp.parts, ident("name"));
+		} else if (mode == FAIL) {
+			// s"Hello $undefined"
+			add(&e->data.interp.parts, string("Hello "));
+			add(&e->data.interp.parts, ident("undefined"));
+		} else {
+			// s"Result: ${1 + 2}"
+			add(&e->data.interp.parts, string("Result: "));
+
+			add(&e->data.interp.parts, binary(op_add, integer(1), integer(2)));
+		}
+
+		// val result: String = interpolated string
+		stmt(b, decl("result", TYPE_STRING, e, false));
+
+		return p;
 	default:
 		fprintf(stderr, "Unsupported AST test kind %d\n", (int)kind);
 		exit(2);

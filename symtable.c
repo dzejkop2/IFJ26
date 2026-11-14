@@ -9,244 +9,262 @@
 #include <string.h>
 #include <malloc.h>
 
-AVLNode* initTree(void)
-{
-    return NULL;
+AVLNode *initTree(void) { return NULL; }
+
+bool symtableIsEmpty(AVLNode *root) { return root == NULL; }
+
+AVLNode *searchNode(AVLNode *root, char *string) {
+	if (symtableIsEmpty(root))
+		return NULL;
+
+	AVLNode *temp_node = root;
+	int res;
+	while (temp_node != NULL) {
+		res = strcmp(temp_node->params.name, string);
+
+		if (res == 0)
+			break;
+
+		if (res > 0)
+			temp_node = temp_node->left;
+		else
+			temp_node = temp_node->right;
+	}
+
+	return temp_node;
 }
 
-bool isEmpty(AVLNode *root)
-{
-    return root == NULL;
+int getHeight(AVLNode *root) {
+	if (!symtableIsEmpty(root))
+		return root->height;
+	return 0;
 }
 
-AVLNode* searchNode(AVLNode *root, char *string)
-{
-    if (isEmpty(root))
-        return NULL;
-
-    AVLNode *temp_node = root;
-    int res;
-    while (temp_node != NULL)
-    {
-        res = strcmp(temp_node->name, string);
-
-        if (res == 0)
-            break;
-
-        if (res > 0)
-            temp_node = temp_node->left;
-        else
-            temp_node = temp_node->right;
-    }
-
-    return temp_node;
+int getBalanceFactor(AVLNode *root) {
+	if (!symtableIsEmpty(root))
+		return getHeight(root->left) - getHeight(root->right);
+	return 0;
 }
 
-int getHeight(AVLNode *root)
-{
-    if (!isEmpty(root))
-        return root->height;
-    return 0;
+int max(int a, int b) { return a > b ? a : b; }
+
+AVLNode *leftRotate(AVLNode *node) {
+	if (node == NULL)
+		return NULL;
+
+	AVLNode *temp_node_b = node->right;
+	AVLNode *temp_node_y = temp_node_b->left;
+
+	temp_node_b->left = node;
+	node->right = temp_node_y;
+
+	node->height = 1 + max(getHeight(node->left), getHeight(node->right));
+
+	temp_node_b->height =
+		1 + max(getHeight(temp_node_b->left), getHeight(temp_node_b->right));
+
+	return temp_node_b;
 }
 
-int getBalanceFactor(AVLNode *root)
-{
-    if (!isEmpty(root))
-        return getHeight(root->left) - getHeight(root->right);
-    return 0;
+AVLNode *rightRotate(AVLNode *node) {
+	if (node == NULL)
+		return NULL;
+
+	AVLNode *temp_node_a = node->left;
+	AVLNode *temp_node_y = temp_node_a->right;
+
+	temp_node_a->right = node;
+	node->left = temp_node_y;
+
+	node->height = 1 + max(getHeight(node->left), getHeight(node->right));
+
+	temp_node_a->height =
+		1 + max(getHeight(temp_node_a->left), getHeight(temp_node_a->right));
+
+	return temp_node_a;
 }
 
-int max(int a, int b)
-{
-    return a > b ? a : b;
+AVLNode *createNode(paramInfo params) {
+	AVLNode *temp_node = (AVLNode *)malloc(sizeof(AVLNode));
+	if (temp_node == NULL) {
+		fprintf(stderr, "Error (createNode): Could not allocate memory for "
+						"temp_node (AVLNode).\n");
+		return NULL;
+	}
+
+	temp_node->params.name = malloc(strlen(params.name) + 1);
+	if (temp_node->params.name == NULL) {
+		fprintf(stderr, "Error (createNode): Could not allocate memory for "
+						"temp_node->params.name (char *).\n");
+		free(temp_node);
+		return NULL;
+	}
+
+	strcpy(temp_node->params.name, params.name);
+	temp_node->params.type = params.type;
+	temp_node->params.is_mutable = params.is_mutable;
+	temp_node->params.param_count = params.param_count;
+	temp_node->params.node_type = params.node_type;
+	temp_node->params.scope = params.scope;
+	temp_node->params.depth = params.depth;
+
+	if (params.node_type == VARIABLE) {
+		temp_node->params.param_count = 0;
+		temp_node->params.param_list = NULL;
+	} else if (params.node_type == FUNCTION) {
+		if (params.param_count != 0) {
+			temp_node->params.param_list =
+				malloc(sizeof(argInfo) * params.param_count);
+			if (temp_node->params.param_list == NULL) {
+				fprintf(stderr,
+						"Error (createNode): Could not allocate memory for "
+						"temp_node->params.param_list (argInfo *).\n");
+				free(temp_node->params.name);
+				free(temp_node);
+				return NULL;
+			}
+
+			for (size_t i = 0; i < params.param_count; i++) {
+				temp_node->params.param_list[i].is_mutable =
+					params.param_list[i].is_mutable;
+				temp_node->params.param_list[i].type =
+					params.param_list[i].type;
+
+				temp_node->params.param_list[i].name =
+					malloc(strlen(params.param_list[i].name) + 1);
+				if (temp_node->params.param_list[i].name == NULL) {
+					fprintf(stderr,
+							"Error (createNode): Could not allocate memory for "
+							"temp_node->params.param_list->name (char *).\n");
+
+					for (size_t j = 0; j < i; j++) {
+						free(temp_node->params.param_list[j].name);
+					}
+
+					free(temp_node->params.param_list);
+					free(temp_node->params.name);
+					free(temp_node);
+					return NULL;
+				}
+
+				strcpy(temp_node->params.param_list[i].name,
+					   params.param_list[i].name);
+			}
+		} else {
+			temp_node->params.param_list = NULL;
+		}
+	}
+
+	temp_node->height = 1;
+	temp_node->left = NULL;
+	temp_node->right = NULL;
+
+	return temp_node;
 }
 
-AVLNode* leftRotate(AVLNode *node)
-{
-    if (node == NULL)
-        return NULL;
+AVLNode *insertNode(AVLNode *root, paramInfo params) {
+	if (root == NULL)
+		return createNode(params);
 
-    AVLNode *temp_node_b = node->right;
-    AVLNode *temp_node_y = temp_node_b->left;
+	int res = strcmp(root->params.name, params.name);
+	if (res > 0) {
+		root->left = insertNode(root->left, params);
+	} else if (res < 0) {
+		root->right = insertNode(root->right, params);
+	} else {
+		return root;
+	}
 
-    temp_node_b->left = node;
-    node->right = temp_node_y;
+	root->height = 1 + max(getHeight(root->left), getHeight(root->right));
 
-    node->height = 1 + max(getHeight(node->left), getHeight(node->right));
+	int bf = getBalanceFactor(root);
 
-    temp_node_b->height = 1 + max(getHeight(temp_node_b->left), getHeight(temp_node_b->right));
+	if (bf > 1) {
+		if (getBalanceFactor(root->left) < 0)
+			root->left = leftRotate(root->left);
+		return rightRotate(root);
+	}
 
-    return temp_node_b;
+	if (bf < -1) {
+		if (getBalanceFactor(root->right) > 0)
+			root->right = rightRotate(root->right);
+		return leftRotate(root);
+	}
+
+	return root;
 }
 
-AVLNode* rightRotate(AVLNode *node)
-{
-    if (node == NULL)
-        return NULL;
+AVLNode *getSuccessor(AVLNode *node) {
+	node = node->right;
 
-    AVLNode *temp_node_a = node->left;
-    AVLNode *temp_node_y = temp_node_a->right;
+	while (node->left != NULL) {
+		node = node->left;
+	}
 
-    temp_node_a->right = node;
-    node->left = temp_node_y;
-
-    node->height = 1 + max(getHeight(node->left), getHeight(node->right));
-
-    temp_node_a->height = 1 + max(getHeight(temp_node_a->left), getHeight(temp_node_a->right));
-
-    return temp_node_a;
+	return node;
 }
 
-AVLNode* createNode(char *name, Type type, int scope, int depth)
-{
-    AVLNode *temp_node = (AVLNode*) malloc(sizeof(AVLNode));
-    if (temp_node == NULL)
-    {
-        fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node (AVLNode).\n");
-        return NULL;
-    }
+AVLNode *deleteNode(AVLNode *root, char *name) {
+	if (root == NULL)
+		return root;
 
-    temp_node->name = malloc(strlen(name) + 1);
-    if (temp_node->name == NULL)
-    {
-        fprintf(stderr, "Error (createNode): Could not allocate memory for temp_node->name (char *).\n");
-        free(temp_node);
-        return NULL;
-    }
+	int res = strcmp(root->params.name, name);
+	if (res > 0) {
+		root->left = deleteNode(root->left, name);
+	} else if (res < 0) {
+		root->right = deleteNode(root->right, name);
+	} else {
+		AVLNode *temp_node;
+		if (root->left == NULL) {
+			temp_node = root->right;
+			free(root->params.name);
+			free(root);
+			return temp_node;
+		} else if (root->right == NULL) {
+			temp_node = root->left;
+			free(root->params.name);
+			free(root);
+			return temp_node;
+		}
 
-    strcpy(temp_node->name, name);
-    temp_node->type = type;
-    temp_node->scope = scope;
-    temp_node->depth = depth;
+		// find inorder successor
+		temp_node = getSuccessor(root);
 
-    temp_node->height = 1;
-    temp_node->left = NULL;
-    temp_node->right = NULL;
+		char *temp_name = malloc(strlen(temp_node->params.name) + 1);
+		if (temp_name == NULL) {
+			fprintf(stderr, "Error (deleteNode): Could not allocate memory for "
+							"temp_name (char *).\n");
+			return root;
+		}
+		free(root->params.name);
 
-    return temp_node;
-}
+		root->params.name = temp_name;
+		strcpy(root->params.name, temp_node->params.name);
+		root->params.type = temp_node->params.type;
+		root->params.is_mutable = temp_node->params.is_mutable;
+		root->params.node_type = temp_node->params.node_type;
+		root->params.param_count = temp_node->params.param_count;
+		root->params.scope = temp_node->params.scope;
+		root->params.depth = temp_node->params.depth;
 
-AVLNode* insertNode(AVLNode *root, char *name, Type type, int scope, int depth)
-{
-    if (root == NULL)
-        return createNode(name, type, scope, depth);
+		root->right = deleteNode(root->right, root->params.name);
+	}
 
-    int res = strcmp(root->name, name);
-    if (res > 0)
-    {
-        root->left = insertNode(root->left, name, type, scope, depth);
-    }
-    else if (res < 0)
-    {
-        root->right = insertNode(root->right, name, type, scope, depth);
-    }
-    else
-    {
-        return root;
-    }
+	root->height = 1 + max(getHeight(root->left), getHeight(root->right));
 
-    root->height = 1 + max(getHeight(root->left), getHeight(root->right));
+	int bf = getBalanceFactor(root);
 
-    int bf = getBalanceFactor(root);
+	if (bf > 1) {
+		if (getBalanceFactor(root->left) < 0)
+			root->left = leftRotate(root->left);
+		return rightRotate(root);
+	}
 
-    if (bf > 1)
-    {
-        if (getBalanceFactor(root->left) < 0)
-            root->left = leftRotate(root->left);
-        return rightRotate(root);
-    }
+	if (bf < -1) {
+		if (getBalanceFactor(root->right) > 0)
+			root->right = rightRotate(root->right);
+		return leftRotate(root);
+	}
 
-    if (bf < -1)
-    {
-        if (getBalanceFactor(root->right) > 0)
-            root->right = rightRotate(root->right);
-        return leftRotate(root);
-    }
-
-    return root;
-}
-
-AVLNode* getSuccessor(AVLNode *node)
-{
-    node = node->right;
-
-    while (node->left != NULL)
-    {
-        node = node->left;
-    }
-
-    return node;
-}
-
-AVLNode* deleteNode(AVLNode *root, char *name)
-{
-    if (root == NULL)
-        return root;
-
-    int res = strcmp(root->name, name);
-    if (res > 0)
-    {
-        root->left = deleteNode(root->left, name);
-    }
-    else if (res < 0)
-    {
-        root->right = deleteNode(root->right, name);
-    }
-    else
-    {
-        AVLNode *temp_node;
-        if (root->left == NULL)
-        {
-            temp_node = root->right;
-            free(root->name);
-            free(root);
-            return temp_node;
-        }
-        else if (root->right == NULL)
-        {
-            temp_node = root->left;
-            free(root->name);
-            free(root);
-            return temp_node;
-        }
-
-        // find inorder successor
-        temp_node = getSuccessor(root);
-
-        char *temp_name = malloc(strlen(temp_node->name) + 1);
-        if (temp_name == NULL)
-        {
-            fprintf(stderr, "Error (deleteNode): Could not allocate memory for temp_name (char *).\n");
-            return root;
-        }
-        free(root->name);
-
-        root->name = temp_name;
-        strcpy(root->name, temp_node->name);
-        root->type = temp_node->type;
-        root->scope = temp_node->scope;
-        root->depth = temp_node->depth;
-
-        root->right = deleteNode(root->right, root->name);
-    }
-
-    root->height = 1 + max(getHeight(root->left), getHeight(root->right));
-
-    int bf = getBalanceFactor(root);
-
-    if (bf > 1)
-    {
-        if (getBalanceFactor(root->left) < 0)
-            root->left = leftRotate(root->left);
-        return rightRotate(root);
-    }
-
-    if (bf < -1)
-    {
-        if (getBalanceFactor(root->right) > 0)
-            root->right = rightRotate(root->right);
-        return leftRotate(root);
-    }
-
-    return root;
+	return root;
 }
