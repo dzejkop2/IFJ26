@@ -53,6 +53,7 @@ typedef enum {
 	TYPE_STRING,
 	TYPE_UNIT,
 	TYPE_BOOL,
+	TYPE_ANY
 } astDataType;
 
 typedef struct astNode astNode;

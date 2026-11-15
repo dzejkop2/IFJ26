@@ -77,7 +77,7 @@ static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 static void registerBuiltins(Scope *scope) {
 	registerBuiltin(
 		scope, "print", TYPE_UNIT, 1,
-		(argInfo[]){{.name = "value", .type = TYPE_NONE, .is_mutable = false}});
+		(argInfo[]){{.name = "value", .type = TYPE_ANY, .is_mutable = false}});
 
 	registerBuiltin(scope, "readLine", TYPE_STRING, 0, NULL);
 
@@ -199,6 +199,8 @@ static void analyzeNode(astNode *node, Scope *scope) {
 		break;
 	case AST_EXPR_STMT:
 		analyzeNode(node->data.exprStmt.expr, scope);
+
+		node->dataType = node->data.exprStmt.expr->dataType;
 		break;
 	case AST_LIT_INT:
 		node->dataType = TYPE_INT;
@@ -292,7 +294,24 @@ static void analyzeBlock(astNode *node, Scope *parentScope) {
 						.id = scopeIdCounter++,
 						.depth = parentScope->depth + 1};
 
-	analyzeNodeList(node->data.block.stmts, &blockScope);
+	astNodeList stmts = node->data.block.stmts;
+	analyzeNodeList(stmts, &blockScope);
+	if (stmts.count == 0) {
+		return;
+	}
+
+	astNode *last = stmts.items[stmts.count - 1];
+	// fprintf(stderr, "\nBODYTYPE = %d ", last->type);
+	// fprintf(stderr, "\nBODYTYPE = %d ", last->dataType);
+
+	if (last->type == AST_EXPR_STMT) {
+		node->dataType = last->dataType;
+	} else {
+		node->dataType = TYPE_UNIT;
+	}
+
+	// fprintf(stderr, "\nBODYTYPE = %d \n", node->dataType);
+	return;
 }
 
 static void analyzeVarDecl(astNode *node, Scope *scope) {
@@ -359,7 +378,7 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
 	AVLNode *symbol = searchSymbolInScope(scope, node->data.identifier.name);
 	if (symbol == NULL) {
 		semanticError(SEMANTIC_UNDEFINITION_ERROR,
-					  "Identifier used before declaration wasd", node);
+					  "Identifier used before declaration", node);
 		return;
 	}
 
@@ -420,6 +439,17 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 
 	// Analyze function body
 	analyzeNode(node->data.funcDef.body, &functionScope);
+	if (node->dataType != node->data.funcDef.body->dataType &&
+		node->dataType != TYPE_NONE && node->dataType != TYPE_ANY) {
+		semanticError(
+			SEMANTIC_TYPE_ERROR,
+			"Expected function datatype and body datatype does not match.",
+			node);
+	}
+
+	node->dataType = node->data.funcDef.body->dataType;
+	AVLNode *functionType = searchSymbolInScope(scope, node->data.funcDef.name);
+	functionType->params.type = node->dataType;
 
 	while (functionScope.symbols != NULL) {
 		AVLNode *symbol = functionScope.symbols;
@@ -479,7 +509,6 @@ static void analyzeCall(astNode *node, Scope *scope) {
 	}
 
 	analyzeNodeList(node->data.call.args, scope);
-	fprintf(stderr, "DEBUG: analyzeCall reached\n");
 
 	if (node->data.call.args.count != callFunc->params.param_count) {
 		semanticError(SEMANTIC_TYPE_ERROR,
@@ -487,15 +516,16 @@ static void analyzeCall(astNode *node, Scope *scope) {
 		return;
 	}
 
-	if (node->data.call.args.count == 0) {
-		node->dataType = callFunc->params.type;
-		return;
-	}
+	// if (node->data.call.args.count == 0) {
+	// 	node->dataType = callFunc->params.data;
+	// 	return;
+	// }
 
 	for (size_t i = 0; i < node->data.call.args.count; i++) {
 
-		if (node->data.call.args.items[i]->dataType !=
-			callFunc->params.param_list[i].type) {
+		if ((node->data.call.args.items[i]->dataType !=
+			 callFunc->params.param_list[i].type) &&
+			(callFunc->params.param_list[i].type != TYPE_ANY)) {
 			semanticError(SEMANTIC_TYPE_ERROR,
 						  "Function call argument type mismatch",
 						  node->data.call.args.items[i]);
@@ -504,7 +534,6 @@ static void analyzeCall(astNode *node, Scope *scope) {
 	}
 
 	node->dataType = callFunc->params.type;
-
 	return;
 }
 
@@ -540,7 +569,6 @@ static void analyzeBinaryOp(astNode *node, Scope *scope) {
 		if (leftType == TYPE_INT && rightType == TYPE_INT) {
 			node->dataType = TYPE_INT;
 		} else if ((leftType == TYPE_DOUBLE && rightType == TYPE_DOUBLE) ||
-				   (leftType == TYPE_INT && rightType == TYPE_INT) ||
 				   (leftType == TYPE_DOUBLE && rightType == TYPE_INT) ||
 				   (leftType == TYPE_INT && rightType == TYPE_DOUBLE)) {
 			node->dataType = TYPE_DOUBLE;
