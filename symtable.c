@@ -107,6 +107,9 @@ AVLNode *createNode(paramInfo params) {
 	temp_node->params.node_type = params.node_type;
 	temp_node->params.scope = params.scope;
 	temp_node->params.depth = params.depth;
+	temp_node->params.resolveState = params.resolveState;
+	temp_node->params.definition = params.definition;
+	temp_node->params.receiver = params.receiver;
 
 	if (params.node_type == VARIABLE) {
 		temp_node->params.param_count = 0;

@@ -296,22 +296,13 @@ static void analyzeBlock(astNode *node, Scope *parentScope) {
 
 	astNodeList stmts = node->data.block.stmts;
 	analyzeNodeList(stmts, &blockScope);
-	if (stmts.count == 0) {
-		return;
+	node->dataType = TYPE_UNIT;
+	if (stmts.count > 0) {
+		astNode *last = stmts.items[stmts.count - 1];
+		if (last->type == AST_EXPR_STMT) {
+			node->dataType = last->data.exprStmt.expr->dataType;
+		}
 	}
-
-	astNode *last = stmts.items[stmts.count - 1];
-	// fprintf(stderr, "\nBODYTYPE = %d ", last->type);
-	// fprintf(stderr, "\nBODYTYPE = %d ", last->dataType);
-
-	if (last->type == AST_EXPR_STMT) {
-		node->dataType = last->dataType;
-	} else {
-		node->dataType = TYPE_UNIT;
-	}
-
-	// fprintf(stderr, "\nBODYTYPE = %d \n", node->dataType);
-	return;
 }
 
 static void analyzeVarDecl(astNode *node, Scope *scope) {
@@ -386,6 +377,30 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
 }
 
 static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
+	char *extensionKey =
+		receiver != NULL ? makeExtensionPrefix(receiver->data.param.type,
+											   node->data.funcDef.name, node)
+						 : NULL;
+	AVLNode *searchedFunction = searchSymbolInScope(
+		scope, extensionKey != NULL ? extensionKey : node->data.funcDef.name);
+	free(extensionKey);
+	if (searchedFunction == NULL) {
+		semanticError(INTERNAL_ERROR, "Function definition is not registered",
+					  node);
+		return;
+	}
+	if (searchedFunction->params.resolveState == TYPE_RESOLVED) {
+		return;
+	}
+	if (searchedFunction->params.resolveState == TYPE_RESOLVING) {
+		semanticError(SEMANTIC_ERROR,
+					  "Cannot infer return type of recursive functions; "
+					  "declare a return type",
+					  node);
+		return;
+	}
+	searchedFunction->params.resolveState = TYPE_RESOLVING;
+
 	Scope functionScope = {.symbols = initTree(),
 						   .parent = scope,
 						   .id = scopeIdCounter++,
@@ -448,8 +463,12 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 	}
 
 	node->dataType = node->data.funcDef.body->dataType;
-	AVLNode *functionType = searchSymbolInScope(scope, node->data.funcDef.name);
-	functionType->params.type = node->dataType;
+	if (node->data.funcDef.retType != TYPE_NONE) {
+		node->dataType = node->data.funcDef.retType;
+	}
+
+	searchedFunction->params.type = node->dataType;
+	searchedFunction->params.resolveState = TYPE_RESOLVED;
 
 	while (functionScope.symbols != NULL) {
 		AVLNode *symbol = functionScope.symbols;
@@ -508,10 +527,30 @@ static void analyzeCall(astNode *node, Scope *scope) {
 		return;
 	}
 
+	if (callFunc->params.type == TYPE_NONE &&
+		callFunc->params.resolveState == TYPE_RESOLVING) {
+		semanticError(SEMANTIC_ERROR,
+					  "Cannot infer return type of recursive functions; "
+					  "declare a return type",
+					  node);
+		return;
+	}
+	if (callFunc->params.definition != NULL &&
+		callFunc->params.resolveState == TYPE_UNVISITED) {
+		/* Definitions belong to the global scope, not to the caller's locals.
+		 */
+		Scope *definitionScope = scope;
+		while (definitionScope->parent != NULL) {
+			definitionScope = definitionScope->parent;
+		}
+		analyzeFunction(callFunc->params.definition, definitionScope,
+						callFunc->params.receiver);
+	}
+
 	analyzeNodeList(node->data.call.args, scope);
 
 	if (node->data.call.args.count != callFunc->params.param_count) {
-		semanticError(SEMANTIC_TYPE_ERROR,
+		semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
 					  "Function call argument count mismatch", node);
 		return;
 	}
@@ -525,6 +564,8 @@ static void analyzeCall(astNode *node, Scope *scope) {
 
 		if ((node->data.call.args.items[i]->dataType !=
 			 callFunc->params.param_list[i].type) &&
+			!(node->data.call.args.items[i]->dataType == TYPE_INT &&
+			  callFunc->params.param_list[i].type == TYPE_DOUBLE) &&
 			(callFunc->params.param_list[i].type != TYPE_ANY)) {
 			semanticError(SEMANTIC_TYPE_ERROR,
 						  "Function call argument type mismatch",
@@ -736,6 +777,9 @@ static void registerFunction(astNode *node, Scope *scope, astNode *receiver) {
 					  .depth = scope->depth};
 
 	scope->symbols = insertNode(scope->symbols, info);
+	AVLNode *symbol = searchNode(scope->symbols, symbolName);
+	symbol->params.definition = node;
+	symbol->params.receiver = receiver;
 
 	free(args);
 	free(extensionKey);
@@ -834,17 +878,6 @@ static void analyzeWhile(astNode *node, Scope *scope) {
 						.parent = scope,
 						.id = scopeIdCounter++,
 						.depth = scope->depth + 1};
-
-	paramInfo iterInfo = {.name = node->data.forLoop.iterName,
-						  .type = TYPE_INT,
-						  .node_type = VARIABLE,
-						  .is_mutable = false,
-						  .param_count = 0,
-						  .param_list = NULL,
-						  .scope = whileScope.id,
-						  .depth = whileScope.depth};
-
-	whileScope.symbols = insertNode(whileScope.symbols, iterInfo);
 
 	analyzeNode(node->data.whileLoop.body, &whileScope);
 }
@@ -952,11 +985,6 @@ static AVLNode *lookupExtension(astNode *node, Scope *scope) {
 	if (symbol == NULL) {
 		semanticError(SEMANTIC_UNDEFINITION_ERROR, "Undefined extension method",
 					  node);
-		return NULL;
-	}
-
-	if (object->dataType != symbol->params.type) {
-		semanticError(SEMANTIC_TYPE_ERROR, "", node);
 		return NULL;
 	}
 

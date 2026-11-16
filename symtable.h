@@ -19,6 +19,8 @@ typedef struct param_info_t {
 	bool is_mutable;
 } argInfo;
 
+typedef enum { TYPE_UNVISITED, TYPE_RESOLVING, TYPE_RESOLVED } typeResolveState;
+
 typedef struct node_param_t {
 	char *name;
 	astDataType type;
@@ -27,6 +29,8 @@ typedef struct node_param_t {
 
 	size_t param_count;
 	argInfo *param_list;
+	typeResolveState resolveState;
+	astNode *definition;
 
 	int scope;
 	int depth;
