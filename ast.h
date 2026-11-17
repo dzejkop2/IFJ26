@@ -184,6 +184,7 @@ struct astNode {
 	astDataType dataType;
 	int line;
 	int col;
+	int scopeId;
 	nodeData data;
 };
 

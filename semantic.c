@@ -48,6 +48,7 @@ static void analyzeInterp(astNode *node, Scope *scope);
 static void registerBuiltins(Scope *scope);
 static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 							size_t paramCount, argInfo *params);
+static bool alwaysReturns(const astNode *node);
 
 static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 							size_t paramCount, argInfo *params) {
@@ -271,6 +272,11 @@ static void analyzeAssign(astNode *node, Scope *scope) {
 
 	AVLNode *symbol = searchSymbolInScope(
 		scope, node->data.assign.target->data.identifier.name);
+	if (symbol == NULL) {
+		semanticError(SEMANTIC_UNDEFINITION_ERROR,
+					  "Assignment to undefined variable", node);
+		return;
+	}
 	if (symbol->params.is_mutable == false) {
 		semanticError(SEMANTIC_UNSUPPORTED_MODIFICATON_ERROR,
 					  "Assignment to immutable variable", node);
@@ -351,6 +357,7 @@ static void analyzeVarDecl(astNode *node, Scope *scope) {
 
 	scope->symbols = insertNode(scope->symbols, info);
 	node->dataType = declType;
+	node->scopeId = scope->id;
 
 	return;
 }
@@ -369,6 +376,7 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
 	}
 
 	node->dataType = symbol->params.type;
+	node->scopeId = symbol->params.scope;
 }
 
 static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
@@ -429,7 +437,7 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 		for (size_t j = 0; j < list->data.paramList.params.count; j++) {
 
 			astNode *param = list->data.paramList.params.items[j];
-
+			param->scopeId = functionScope.id;
 			paramInfo info = {.name = param->data.param.name,
 							  .type = param->data.param.type,
 							  .node_type = VARIABLE,
@@ -815,12 +823,16 @@ static void analyzeIf(astNode *node, Scope *scope) {
 	analyzeNode(node->data.ifStmt.elseBody, scope);
 	astDataType elseType = node->data.ifStmt.elseBody->dataType;
 
-	if (thenType == TYPE_NONE || elseType == TYPE_NONE) {
-		semanticError(SEMANTIC_TYPE_ERROR,
-					  "Cannot determine if expression type", node);
-	}
+	bool thenReturns = alwaysReturns(node->data.ifStmt.thenBody);
+	bool elseReturns = alwaysReturns(node->data.ifStmt.elseBody);
 
-	if (thenType == elseType) {
+	if (thenReturns && elseReturns) {
+		node->dataType = TYPE_UNIT;
+	} else if (thenReturns) {
+		node->dataType = elseType;
+	} else if (elseReturns) {
+		node->dataType = thenType;
+	} else if (thenType == elseType) {
 		node->dataType = thenType;
 	} else if ((thenType == TYPE_INT && elseType == TYPE_DOUBLE) ||
 			   (thenType == TYPE_DOUBLE && elseType == TYPE_INT)) {
@@ -828,6 +840,11 @@ static void analyzeIf(astNode *node, Scope *scope) {
 	} else {
 		semanticError(SEMANTIC_TYPE_ERROR,
 					  "If branches have incompatible types", node);
+	}
+
+	if (thenType == TYPE_NONE || elseType == TYPE_NONE) {
+		semanticError(SEMANTIC_TYPE_ERROR,
+					  "Cannot determine if expression type", node);
 	}
 	return;
 }
@@ -875,6 +892,8 @@ static void analyzeFor(astNode *node, Scope *scope) {
 					  .parent = scope,
 					  .id = scopeIdCounter++,
 					  .depth = scope->depth + 1};
+
+	node->scopeId = forScope.id;
 
 	paramInfo iterInfo = {.name = node->data.forLoop.iterName,
 						  .type = TYPE_INT,
@@ -1141,4 +1160,32 @@ static void analyzeInterp(astNode *node, Scope *scope) {
 	}
 
 	node->dataType = TYPE_STRING;
+}
+
+static bool alwaysReturns(const astNode *node) {
+	if (node == NULL)
+		return false;
+
+	switch (node->type) {
+	case AST_RETURN:
+		return true;
+
+	case AST_BLOCK:
+		for (size_t i = 0; i < node->data.block.stmts.count; i++) {
+			if (alwaysReturns(node->data.block.stmts.items[i]))
+				return true;
+		}
+		return false;
+
+	case AST_IF:
+		return node->data.ifStmt.elseBody != NULL &&
+			   alwaysReturns(node->data.ifStmt.thenBody) &&
+			   alwaysReturns(node->data.ifStmt.elseBody);
+
+	case AST_EXPR_STMT:
+		return alwaysReturns(node->data.exprStmt.expr);
+
+	default:
+		return false;
+	}
 }
