@@ -34,6 +34,7 @@ static void analyzeCall(astNode *node, Scope *scope);
 static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver);
 static void registerFunction(astNode *node, Scope *scope, astNode *receiver);
 static void analyzeAssign(astNode *node, Scope *scope);
+static void analyzeIf(astNode *node, Scope *scope);
 static void analyzeFor(astNode *node, Scope *scope);
 static void analyzeWhile(astNode *node, Scope *scope);
 static void registerExtension(astNode *node, Scope *scope);
@@ -87,7 +88,7 @@ static void registerBuiltins(Scope *scope) {
 
 	registerBuiltin(
 		scope, "toStr", TYPE_STRING, 1,
-		(argInfo[]){{.name = "value", .type = TYPE_NONE, .is_mutable = false}});
+		(argInfo[]){{.name = "value", .type = TYPE_ANY, .is_mutable = false}});
 
 	registerBuiltin(
 		scope, "toInt", TYPE_INT, 1,
@@ -109,7 +110,6 @@ static void registerBuiltins(Scope *scope) {
 		(argInfo[]){{.name = "s", .type = TYPE_STRING, .is_mutable = false},
 					{.name = "i", .type = TYPE_INT, .is_mutable = false}});
 
-	// chr(i: Int): String
 	registerBuiltin(
 		scope, "chr", TYPE_STRING, 1,
 		(argInfo[]){{.name = "i", .type = TYPE_INT, .is_mutable = false}});
@@ -188,14 +188,7 @@ static void analyzeNode(astNode *node, Scope *scope) {
 
 		break;
 	case AST_IF:
-		analyzeNode(node->data.ifStmt.cond, scope);
-		if (node->data.ifStmt.cond->dataType != TYPE_BOOL) {
-			semanticError(SEMANTIC_TYPE_ERROR,
-						  "If condition must be of type bool",
-						  node->data.ifStmt.cond);
-		}
-		analyzeNode(node->data.ifStmt.thenBody, scope);
-		analyzeNode(node->data.ifStmt.elseBody, scope);
+		analyzeIf(node, scope);
 		break;
 	case AST_EXPR_STMT:
 		analyzeNode(node->data.exprStmt.expr, scope);
@@ -275,6 +268,7 @@ static void analyzeAssign(astNode *node, Scope *scope) {
 		  node->data.assign.value->dataType == TYPE_INT)) {
 		semanticError(SEMANTIC_TYPE_ERROR, "Assignment type mismatch", node);
 	}
+
 	AVLNode *symbol = searchSymbolInScope(
 		scope, node->data.assign.target->data.identifier.name);
 	if (symbol->params.is_mutable == false) {
@@ -299,8 +293,9 @@ static void analyzeBlock(astNode *node, Scope *parentScope) {
 	node->dataType = TYPE_UNIT;
 	if (stmts.count > 0) {
 		astNode *last = stmts.items[stmts.count - 1];
-		if (last->type == AST_EXPR_STMT) {
-			node->dataType = last->data.exprStmt.expr->dataType;
+		if (last->type == AST_EXPR_STMT || last->type == AST_IF ||
+			last->type == AST_RETURN) {
+			node->dataType = last->dataType;
 		}
 	}
 }
@@ -319,7 +314,7 @@ static void analyzeVarDecl(astNode *node, Scope *scope) {
 					  node);
 		return;
 	}
-	analyzeNode(node->data.varDecl.value, scope);
+	analyzeNode(valueNode, scope);
 	if (valueNode->dataType == TYPE_NONE) {
 		semanticError(SEMANTIC_TYPE_ERROR,
 					  "Variable declaration with TYPE_NONE value", node);
@@ -392,7 +387,8 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 	if (searchedFunction->params.resolveState == TYPE_RESOLVED) {
 		return;
 	}
-	if (searchedFunction->params.resolveState == TYPE_RESOLVING) {
+	if (searchedFunction->params.resolveState == TYPE_RESOLVING &&
+		searchedFunction->params.type == TYPE_NONE) {
 		semanticError(SEMANTIC_ERROR,
 					  "Cannot infer return type of recursive functions; "
 					  "declare a return type",
@@ -452,23 +448,32 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 		}
 	}
 
-	// Analyze function body
 	analyzeNode(node->data.funcDef.body, &functionScope);
-	if (node->dataType != node->data.funcDef.body->dataType &&
-		node->dataType != TYPE_NONE && node->dataType != TYPE_ANY) {
-		semanticError(
-			SEMANTIC_TYPE_ERROR,
-			"Expected function datatype and body datatype does not match.",
-			node);
+
+	astDataType declaredType = node->data.funcDef.retType;
+	astDataType actualType = node->data.funcDef.body->dataType;
+
+	if (actualType == TYPE_NONE) {
+		semanticError(SEMANTIC_TYPE_ERROR,
+					  "Cannot determine function return type", node);
+		return;
 	}
 
-	node->dataType = node->data.funcDef.body->dataType;
-	if (node->data.funcDef.retType != TYPE_NONE) {
-		node->dataType = node->data.funcDef.retType;
+	if (declaredType != TYPE_NONE && declaredType != actualType &&
+		!(declaredType == TYPE_DOUBLE && actualType == TYPE_INT)) {
+
+		semanticError(SEMANTIC_TYPE_ERROR, "Function return type mismatch",
+					  node);
+		return;
 	}
 
-	searchedFunction->params.type = node->dataType;
-	searchedFunction->params.resolveState = TYPE_RESOLVED;
+	astDataType finalType =
+		(declaredType == TYPE_NONE) ? actualType : declaredType;
+
+	node->dataType = finalType;
+	node->data.funcDef.retType = finalType;
+
+	searchedFunction->params.type = finalType;
 
 	while (functionScope.symbols != NULL) {
 		AVLNode *symbol = functionScope.symbols;
@@ -487,6 +492,7 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 			free(symbol);
 		}
 	}
+	searchedFunction->params.resolveState = TYPE_RESOLVED;
 }
 
 static void analyzeCall(astNode *node, Scope *scope) {
@@ -509,10 +515,6 @@ static void analyzeCall(astNode *node, Scope *scope) {
 	} else if (callee->type == AST_MEMBER) {
 
 		callFunc = lookupExtension(callee, scope);
-
-	} else {
-		semanticError(INTERNAL_ERROR, "Unsupported callee type", callee);
-		return;
 	}
 
 	if (callFunc == NULL) {
@@ -537,14 +539,26 @@ static void analyzeCall(astNode *node, Scope *scope) {
 	}
 	if (callFunc->params.definition != NULL &&
 		callFunc->params.resolveState == TYPE_UNVISITED) {
-		/* Definitions belong to the global scope, not to the caller's locals.
-		 */
+
 		Scope *definitionScope = scope;
 		while (definitionScope->parent != NULL) {
 			definitionScope = definitionScope->parent;
 		}
 		analyzeFunction(callFunc->params.definition, definitionScope,
 						callFunc->params.receiver);
+	}
+
+	if (callee->type == AST_MEMBER) {
+		astNode *definition = callFunc->params.definition;
+
+		if (definition != NULL &&
+			definition->data.funcDef.paramLists.count == 0) {
+
+			semanticError(
+				SEMANTIC_ARGUMENT_COUNT_ERROR,
+				"Extension property cannot be called with parentheses", node);
+			return;
+		}
 	}
 
 	analyzeNodeList(node->data.call.args, scope);
@@ -567,7 +581,7 @@ static void analyzeCall(astNode *node, Scope *scope) {
 			!(node->data.call.args.items[i]->dataType == TYPE_INT &&
 			  callFunc->params.param_list[i].type == TYPE_DOUBLE) &&
 			(callFunc->params.param_list[i].type != TYPE_ANY)) {
-			semanticError(SEMANTIC_TYPE_ERROR,
+			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
 						  "Function call argument type mismatch",
 						  node->data.call.args.items[i]);
 			return;
@@ -785,6 +799,39 @@ static void registerFunction(astNode *node, Scope *scope, astNode *receiver) {
 	free(extensionKey);
 }
 
+static void analyzeIf(astNode *node, Scope *scope) {
+	analyzeNode(node->data.ifStmt.cond, scope);
+	if (node->data.ifStmt.cond->dataType != TYPE_BOOL) {
+		semanticError(SEMANTIC_TYPE_ERROR, "If condition must be of type bool",
+					  node->data.ifStmt.cond);
+	}
+	analyzeNode(node->data.ifStmt.thenBody, scope);
+	astDataType thenType = node->data.ifStmt.thenBody->dataType;
+
+	if (node->data.ifStmt.elseBody == NULL) {
+		node->dataType = TYPE_UNIT;
+		return;
+	}
+	analyzeNode(node->data.ifStmt.elseBody, scope);
+	astDataType elseType = node->data.ifStmt.elseBody->dataType;
+
+	if (thenType == TYPE_NONE || elseType == TYPE_NONE) {
+		semanticError(SEMANTIC_TYPE_ERROR,
+					  "Cannot determine if expression type", node);
+	}
+
+	if (thenType == elseType) {
+		node->dataType = thenType;
+	} else if ((thenType == TYPE_INT && elseType == TYPE_DOUBLE) ||
+			   (thenType == TYPE_DOUBLE && elseType == TYPE_INT)) {
+		node->dataType = TYPE_DOUBLE;
+	} else {
+		semanticError(SEMANTIC_TYPE_ERROR,
+					  "If branches have incompatible types", node);
+	}
+	return;
+}
+
 static void analyzeFor(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_FOR) {
 		semanticError(INTERNAL_ERROR, "Invalid for loop node", node);
@@ -950,6 +997,15 @@ static void analyzeMember(astNode *node, Scope *scope) {
 		return;
 	}
 
+	astNode *definition = method->params.definition;
+
+	if (definition != NULL && definition->data.funcDef.paramLists.count > 0) {
+
+		semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
+					  "Extension method requires parentheses", node);
+		return;
+	}
+
 	node->dataType = method->params.type;
 	return;
 }
@@ -1058,7 +1114,7 @@ static void analyzeReturn(astNode *node, Scope *scope) {
 		return;
 	}
 
-	node->dataType = TYPE_UNIT;
+	node->dataType = expectedType;
 }
 
 static void analyzeInterp(astNode *node, Scope *scope) {

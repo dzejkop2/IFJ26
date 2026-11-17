@@ -31,6 +31,7 @@ typedef struct node_param_t {
 	argInfo *param_list;
 	typeResolveState resolveState;
 	astNode *definition;
+	astNode *receiver;
 
 	int scope;
 	int depth;
