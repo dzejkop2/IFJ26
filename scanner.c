@@ -28,16 +28,17 @@ void indentResolve(int spaces);
 void storeSign(void);
 void modeInit(void);
 static token peeked;
+static int hasPeeked = 0;
 
 int *indentStack;
 size_t indentTop;
 size_t indentCapacity;
 int pendingIndent;
 int pendingDedent;
-static int hasPeeked = 0;
-static int lastWasNL = 1;
 static int parenDepth = 0;
-static int scannerActive = 0;
+// int hasPeeked = 0;
+int lastWasNL = 1;
+int scannerActive = 0;
 
 token makeNumber(token helpToken, specTokenType numType);
 token makeString(token helpToken);
@@ -651,7 +652,7 @@ token getTokenChecked(void) {
 					error(LEXICAL_ERROR,
 						  "Newline inside interpolated expression");
 				}
-				if (tabAtStart > 0) {
+				if (tabAtStart > 0 && currentSign != EOF) {
 					error(LEXICAL_ERROR, "Tab in indentation");
 				}
 				if (parenDepth > 0 && currentSign != EOF) {
@@ -1063,7 +1064,7 @@ token makeToken(token helpToken) {
 	if (newToken.specType == ps_newLine || newToken.specType == ps_indent ||
 		newToken.specType == ps_dedent) {
 		lastWasNL = 1;
-	} else {
+	} else if (newToken.specType != ps_eof){
 		lastWasNL = 0;
 	}
 	return newToken;

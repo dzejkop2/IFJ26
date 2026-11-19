@@ -254,5 +254,6 @@ int bufferAdvance(void);
 void scannerFree(void);
 void scannerInit(void);
 void scanner_dtor(void);
+token getToken(void);
 
 #endif

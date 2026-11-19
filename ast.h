@@ -53,6 +53,7 @@ typedef enum {
 	TYPE_STRING,
 	TYPE_UNIT,
 	TYPE_BOOL,
+	TYPE_ANY
 } astDataType;
 
 typedef struct astNode astNode;
@@ -183,6 +184,8 @@ struct astNode {
 	astDataType dataType;
 	int line;
 	int col;
+	int scopeId;
+	bool intToDouble;
 	nodeData data;
 };
 
