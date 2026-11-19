@@ -9,6 +9,7 @@
 #include "semantic.h"
 
 static int scopeIdCounter = 0;
+static astNode *mainNode = NULL;
 
 static void semanticError(int code, const char *message, const astNode *node) {
 	char diagnostic[512];
@@ -55,7 +56,7 @@ static void registerBuiltinExtension(
     const char *name,
     astDataType returnType
 ); 
-
+static bool lastStatementReturns(const astNode* body);
 
 static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 							size_t paramCount, argInfo *params) {
@@ -222,6 +223,13 @@ void semanticAnalyze(astNode *root) {
 						 .depth = 0};
 	registerBuiltins(&globalScope);
 	analyzeNode(root, &globalScope);
+
+	// a function named "main" without @main is not the entry point
+	if (mainNode == NULL) {
+		semanticError(SEMANTIC_UNDEFINITION_ERROR,
+					  "Missing @main function", root);
+	}
+
 	destroyAVL(globalScope.symbols);
 }
 
@@ -463,11 +471,39 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
 		return;
 	}
 
+	if (symbol->params.node_type == FUNCTION) {
+		astNode *definition = symbol->params.definition;
+		if (definition == NULL ||
+			definition->data.funcDef.paramLists.count > 0) {
+			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
+						  "Function must be called with its parameter lists",
+						  node);
+			return;
+		}
+
+		if (symbol->params.resolveState == TYPE_RESOLVING &&
+			symbol->params.type == TYPE_NONE) {
+			semanticError(SEMANTIC_TYPE_ERROR,
+						  "Cannot infer return type of recursive functions; "
+						  "declare a return type",
+						  node);
+			return;
+		}
+		if (symbol->params.resolveState == TYPE_UNVISITED) {
+			Scope *definitionScope = scope;
+			while (definitionScope->parent != NULL) {
+				definitionScope = definitionScope->parent;
+			}
+			analyzeFunction(definition, definitionScope,
+							symbol->params.receiver);
+		}
+	}
+
 	node->dataType = symbol->params.type;
 	node->scopeId = symbol->params.scope;
-	fprintf(stderr, "[SEMANTIC] %s -> scope %d\n",
+/* 	fprintf(stderr, "[SEMANTIC] %s -> scope %d\n",
         node->data.identifier.name,
-        node->scopeId);
+        node->scopeId); */
 }
 
 static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
@@ -488,7 +524,7 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 	}
 	if (searchedFunction->params.resolveState == TYPE_RESOLVING &&
 		searchedFunction->params.type == TYPE_NONE) {
-		semanticError(SEMANTIC_ERROR,
+		semanticError(SEMANTIC_TYPE_ERROR,
 					  "Cannot infer return type of recursive functions; "
 					  "declare a return type",
 					  node);
@@ -552,29 +588,55 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 	astDataType declaredType = node->data.funcDef.retType;
 	astDataType actualType = node->data.funcDef.body->dataType;
 
+	if(node->data.funcDef.isMain){
+
+		if(declaredType != TYPE_UNIT) {
+			semanticError(SEMANTIC_TYPE_ERROR,
+				"Main is not type UNIT",node);
+		}
+		if (mainNode != NULL){
+			semanticError(SEMANTIC_REDEFINITION_ERROR,
+				"Multiple main declarations",node);
+		}
+		mainNode = node;
+
+		if (node->data.funcDef.paramLists.count != 1 ||
+			node->data.funcDef.paramLists.items[0]->data.paramList.params.count != 0) {
+			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
+				"Main must not have parameters",node);
+		}
+	} 
+
+
 	if (actualType == TYPE_NONE) {
 		semanticError(SEMANTIC_TYPE_ERROR,
 					  "Cannot determine function return type", node);
 		return;
 	}
 
-	bool bodyAlwaysReturns = alwaysReturns(node->data.funcDef.body);
+	bool finalStatementReturns =
+		lastStatementReturns(node->data.funcDef.body);
 
-	if (!bodyAlwaysReturns &&
-		declaredType != TYPE_NONE &&
-		declaredType != actualType &&
-		!(declaredType == TYPE_DOUBLE && actualType == TYPE_INT)) {
+		if (declaredType != TYPE_NONE &&
+			declaredType != TYPE_UNIT &&
+			!finalStatementReturns &&
+			declaredType != actualType &&
+			!(declaredType == TYPE_DOUBLE && actualType == TYPE_INT)) {
 
-		semanticError(
-			SEMANTIC_TYPE_ERROR,
-			"Function return type mismatch",
-			node
-		);
-		return;
+			semanticError(
+				SEMANTIC_TYPE_ERROR,
+				"Function body type mismatch",
+				node
+			);
+			return;
 	}
 
-	astDataType finalType =
-		(declaredType == TYPE_NONE) ? actualType : declaredType;
+
+    astDataType finalType = TYPE_UNIT;
+    if (declaredType != TYPE_UNIT){
+
+        finalType = (declaredType == TYPE_NONE) ? actualType : declaredType;
+    }
 
 	node->dataType = finalType;
 	node->data.funcDef.retType = finalType;
@@ -599,6 +661,16 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 		}
 	}
 	searchedFunction->params.resolveState = TYPE_RESOLVED;
+}
+
+static bool isArgCompatible(astDataType argType, astDataType paramType) {
+	return argType == paramType || paramType == TYPE_ANY ||
+		   (argType == TYPE_INT && paramType == TYPE_DOUBLE);
+}
+
+static void markIntToDouble(astNode *arg, astDataType paramType) {
+	if (arg->dataType == TYPE_INT && paramType == TYPE_DOUBLE)
+		arg->intToDouble = true;
 }
 
 static void analyzeCall(astNode *node, Scope *scope) {
@@ -657,7 +729,7 @@ static void analyzeCall(astNode *node, Scope *scope) {
 
 	if (callFunc->params.type == TYPE_NONE &&
 		callFunc->params.resolveState == TYPE_RESOLVING) {
-		semanticError(SEMANTIC_ERROR,
+		semanticError(SEMANTIC_TYPE_ERROR,
 					  "Cannot infer return type of recursive functions; "
 					  "declare a return type",
 					  node);
@@ -674,42 +746,82 @@ static void analyzeCall(astNode *node, Scope *scope) {
 						callFunc->params.receiver);
 	}
 
-	if (callee->type == AST_MEMBER) {
-		astNode *definition = callFunc->params.definition;
+	astNode *definition = callFunc->params.definition;
 
-		if (definition != NULL &&
-			definition->data.funcDef.paramLists.count == 0) {
-
-			semanticError(
-				SEMANTIC_ARGUMENT_COUNT_ERROR,
-				"Extension property cannot be called with parentheses", node);
-			return;
-		}
-	}
-
-
-	if (totalArgs != callFunc->params.param_count) {
+	if (callee->type == AST_MEMBER && definition == NULL) {
 		semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-					  "Function call argument count mismatch", node);
+					  "Member cannot be called with parentheses", node);
 		return;
 	}
 
+	astNode **calls = malloc(totalLists * sizeof(astNode *));
+	if (calls == NULL) {
+		semanticError(INTERNAL_ERROR, "Memory allocation failed", node);
+		return;
+	}
+	astNode *call = node;
+	for (size_t i = totalLists; i > 0; i--) {
+		calls[i - 1] = call;
+		call = call->data.call.callee;
+	}
 
+	if (definition != NULL) {
+		astNodeList paramLists = definition->data.funcDef.paramLists;
 
-	for (size_t i = 0; i < node->data.call.args.count; i++) {
-
-		if ((node->data.call.args.items[i]->dataType !=
-			 callFunc->params.param_list[i].type) &&
-			!(node->data.call.args.items[i]->dataType == TYPE_INT &&
-			  callFunc->params.param_list[i].type == TYPE_DOUBLE) &&
-			(callFunc->params.param_list[i].type != TYPE_ANY)) {
+		if (totalLists != paramLists.count) {
+			free(calls);
 			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-						  "Function call argument type mismatch",
-						  node->data.call.args.items[i]);
+						  "Function call parameter list count mismatch", node);
 			return;
+		}
+
+		for (size_t i = 0; i < totalLists; i++) {
+			astNodeList args = calls[i]->data.call.args;
+			astNodeList params =
+				paramLists.items[i]->data.paramList.params;
+
+			if (args.count != params.count) {
+				free(calls);
+				semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
+							  "Function call argument count mismatch", node);
+				return;
+			}
+
+			for (size_t j = 0; j < args.count; j++) {
+				if (!isArgCompatible(args.items[j]->dataType,
+									 params.items[j]->data.param.type)) {
+					free(calls);
+					semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
+								  "Function call argument type mismatch",
+								  args.items[j]);
+					return;
+				}
+				markIntToDouble(args.items[j],
+								params.items[j]->data.param.type);
+			}
+		}
+	} else {
+		if (totalLists != 1 || totalArgs != callFunc->params.param_count) {
+			free(calls);
+			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
+						  "Function call argument count mismatch", node);
+			return;
+		}
+
+		for (size_t j = 0; j < totalArgs; j++) {
+			astNode *arg = node->data.call.args.items[j];
+			if (!isArgCompatible(arg->dataType,
+								 callFunc->params.param_list[j].type)) {
+				free(calls);
+				semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
+							  "Function call argument type mismatch", arg);
+				return;
+			}
+			markIntToDouble(arg, callFunc->params.param_list[j].type);
 		}
 	}
 
+	free(calls);
 	node->dataType = callFunc->params.type;
 	return;
 }
@@ -770,8 +882,9 @@ static void analyzeBinaryOp(astNode *node, Scope *scope) {
 	case op_lowerThen:
 	case op_lowerEqual:
 	case op_biggerEqual:
-		if ((leftType == TYPE_INT || leftType == TYPE_DOUBLE) &&
-			(rightType == TYPE_INT || rightType == TYPE_DOUBLE)) {
+		if (((leftType == TYPE_INT || leftType == TYPE_DOUBLE) &&
+			(rightType == TYPE_INT || rightType == TYPE_DOUBLE)) ||
+			(leftType == TYPE_STRING && rightType == TYPE_STRING)) {
 			node->dataType = TYPE_BOOL;
 		} else {
 			semanticError(SEMANTIC_TYPE_ERROR,
@@ -996,7 +1109,7 @@ static void analyzeFor(astNode *node, Scope *scope) {
 						  stepNode);
 		}
 		if (stepNode->data.intValue == 0) {
-			semanticError(SEMANTIC_TYPE_ERROR,
+			semanticError(SEMANTIC_ERROR,
 						  "For loop 'step' expression cannot be zero",
 						  stepNode);
 		}
@@ -1305,4 +1418,24 @@ static bool alwaysReturns(const astNode *node) {
 	default:
 		return false;
 	}
+}
+
+static bool lastStatementReturns(const astNode* body) {
+    if (body == NULL) {
+        return false;
+    }
+
+    const astNode *last = body;
+
+    if (body->type == AST_BLOCK) {
+        astNodeList stmts = body->data.block.stmts;
+
+        if (stmts.count == 0) {
+            return false;
+        }
+
+        last = stmts.items[stmts.count - 1];
+    }
+
+    return alwaysReturns(last);
 }

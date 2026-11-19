@@ -30,6 +30,11 @@ void builtinGenReadLine(void) {
 	printf("PUSHFRAME\n");
 	printf("DEFVAR LF@result\n");
 	printf("READ LF@result string\n");
+	printf("DEFVAR LF@t\n");
+	printf("TYPE LF@t LF@result\n");
+	printf("JUMPIFEQ $$readLine$ok LF@t string@string\n");
+	printf("MOVE LF@result string@\n");
+	printf("LABEL $$readLine$ok\n");
 	printf("PUSHS LF@result\n");
 	printf("POPFRAME\n");
 	printf("RETURN\n");
@@ -41,6 +46,11 @@ void builtinGenReadInt(void) {
 	printf("PUSHFRAME\n");
 	printf("DEFVAR LF@result\n");
 	printf("READ LF@result int\n");
+	printf("DEFVAR LF@t\n");
+	printf("TYPE LF@t LF@result\n");
+	printf("JUMPIFEQ $$readInt$ok LF@t string@int\n");
+	printf("MOVE LF@result int@0\n");
+	printf("LABEL $$readInt$ok\n");
 	printf("PUSHS LF@result\n");
 	printf("POPFRAME\n");
 	printf("RETURN\n");
@@ -52,6 +62,11 @@ void builtinGenReadDouble(void) {
 	printf("PUSHFRAME\n");
 	printf("DEFVAR LF@result\n");
 	printf("READ LF@result float\n");
+	printf("DEFVAR LF@t\n");
+	printf("TYPE LF@t LF@result\n");
+	printf("JUMPIFEQ $$readDouble$ok LF@t string@float\n");
+	printf("MOVE LF@result float@0x0p+0\n");
+	printf("LABEL $$readDouble$ok\n");
 	printf("PUSHS LF@result\n");
 	printf("POPFRAME\n");
 	printf("RETURN\n");

@@ -264,7 +264,7 @@ void parseGlobalDefs(astNodeList *defs) {
 
 		if (def->type == AST_FUN_DEF && def->data.funcDef.isMain) {
 			if (mainFound) {
-				error(SYNTAX_ERROR, "Multiple main functions found");
+				error(SEMANTIC_REDEFINITION_ERROR, "Multiple main functions found");
 			}
 			mainFound = true;
 		}

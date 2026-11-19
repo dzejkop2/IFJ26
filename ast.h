@@ -185,6 +185,7 @@ struct astNode {
 	int line;
 	int col;
 	int scopeId;
+	bool intToDouble;
 	nodeData data;
 };
 
