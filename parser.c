@@ -185,9 +185,7 @@ astNode *parse(void) {
 
 	if (program == NULL) {
 		error(SYNTAX_ERROR, "Invalid program structure");
-	} else {
-		printf("Program parsed successfully.\n");
-	}
+	} 
 
 	parserMarkAttached(program);
 	parserCleanup();

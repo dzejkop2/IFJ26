@@ -49,6 +49,13 @@ static void registerBuiltins(Scope *scope);
 static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 							size_t paramCount, argInfo *params);
 static bool alwaysReturns(const astNode *node);
+static void registerBuiltinExtension(
+    Scope *scope,
+    astDataType receiverType,
+    const char *name,
+    astDataType returnType
+); 
+
 
 static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 							size_t paramCount, argInfo *params) {
@@ -58,7 +65,6 @@ static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 		return;
 	}
 
-	// Check for duplicate function
 	if (searchNode(scope->symbols, name) != NULL) {
 		error(SEMANTIC_REDEFINITION_ERROR, "Builtin function already defined");
 		return;
@@ -76,6 +82,46 @@ static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 	scope->symbols = insertNode(scope->symbols, info);
 }
 
+static void registerBuiltinExtension(
+    Scope *scope,
+    astDataType receiverType,
+    const char *name,
+    astDataType returnType
+) {
+    char *key = makeExtensionPrefix(receiverType, name, NULL);
+
+    if (key == NULL) {
+        error(INTERNAL_ERROR, "Cannot register builtin extension");
+        return;
+    }
+
+    if (searchNode(scope->symbols, key) != NULL) {
+        free(key);
+        error(SEMANTIC_REDEFINITION_ERROR,
+              "Builtin extension already registered");
+        return;
+    }
+
+    paramInfo info = {
+        .name = key,
+        .type = returnType,
+        .node_type = FUNCTION,
+        .is_mutable = false,
+        .param_count = 0,
+        .param_list = NULL,
+        .scope = scope->id,
+        .depth = scope->depth,
+        .resolveState = TYPE_RESOLVED,
+        .definition = NULL,
+        .receiver = NULL
+    };
+
+    scope->symbols = insertNode(scope->symbols, info);
+
+    free(key);
+}
+
+
 static void registerBuiltins(Scope *scope) {
 	registerBuiltin(
 		scope, "print", TYPE_UNIT, 1,
@@ -87,18 +133,40 @@ static void registerBuiltins(Scope *scope) {
 
 	registerBuiltin(scope, "readDouble", TYPE_DOUBLE, 0, NULL);
 
-	registerBuiltin(
-		scope, "toStr", TYPE_STRING, 1,
-		(argInfo[]){{.name = "value", .type = TYPE_ANY, .is_mutable = false}});
+	registerBuiltin(scope, "readBoolean", TYPE_BOOL, 0, NULL);
 
-	registerBuiltin(
-		scope, "toInt", TYPE_INT, 1,
-		(argInfo[]){
-			{.name = "value", .type = TYPE_DOUBLE, .is_mutable = false}});
 
-	registerBuiltin(
-		scope, "strLength", TYPE_INT, 1,
-		(argInfo[]){{.name = "s", .type = TYPE_STRING, .is_mutable = false}});
+registerBuiltinExtension(
+    scope, TYPE_DOUBLE, "toInt", TYPE_INT
+);
+
+registerBuiltinExtension(
+    scope, TYPE_DOUBLE, "floor", TYPE_DOUBLE
+);
+
+registerBuiltinExtension(
+    scope, TYPE_STRING, "length", TYPE_INT
+);
+
+registerBuiltinExtension(
+    scope, TYPE_INT, "toString", TYPE_STRING
+);
+
+registerBuiltinExtension(
+    scope, TYPE_DOUBLE, "toString", TYPE_STRING
+);
+
+registerBuiltinExtension(
+    scope, TYPE_BOOL, "toString", TYPE_STRING
+);
+
+registerBuiltinExtension(
+    scope, TYPE_STRING, "toString", TYPE_STRING
+);
+
+registerBuiltinExtension(
+    scope, TYPE_UNIT, "toString", TYPE_STRING
+);
 
 	registerBuiltin(
 		scope, "subStr", TYPE_STRING, 3,
@@ -114,6 +182,27 @@ static void registerBuiltins(Scope *scope) {
 	registerBuiltin(
 		scope, "chr", TYPE_STRING, 1,
 		(argInfo[]){{.name = "i", .type = TYPE_INT, .is_mutable = false}});
+
+registerBuiltin(
+    scope, "strLength", TYPE_INT, 1,
+    (argInfo[]){
+        {.name = "value", .type = TYPE_STRING, .is_mutable = false}
+    }
+);
+
+registerBuiltin(
+    scope, "toStr", TYPE_STRING, 1,
+    (argInfo[]){
+        {.name = "value", .type = TYPE_ANY, .is_mutable = false}
+    }
+);
+
+registerBuiltin(
+    scope, "toInt", TYPE_INT, 1,
+    (argInfo[]){
+        {.name = "value", .type = TYPE_DOUBLE, .is_mutable = false}
+    }
+);
 }
 
 static void analyzeNodeList(astNodeList nodeList, Scope *scope) {
@@ -216,12 +305,9 @@ static void analyzeNode(astNode *node, Scope *scope) {
 		analyzeIdentifier(node, scope);
 		break;
 	case AST_BINARY_OP:
-		analyzeNode(node->data.binary.left, scope);
-		analyzeNode(node->data.binary.right, scope);
 		analyzeBinaryOp(node, scope);
 		break;
 	case AST_UNARY_OP:
-		analyzeNode(node->data.unary.operand, scope);
 		analyzeUnaryOp(node, scope);
 		break;
 	case AST_CALL:
@@ -379,6 +465,9 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
 
 	node->dataType = symbol->params.type;
 	node->scopeId = symbol->params.scope;
+	fprintf(stderr, "[SEMANTIC] %s -> scope %d\n",
+        node->data.identifier.name,
+        node->scopeId);
 }
 
 static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
@@ -414,6 +503,7 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 						   .closingFunction = node};
 
 	if (receiver != NULL) {
+		node->scopeId = functionScope.id;
 		if (receiver->type != AST_PARAM ||
 			receiver->data.param.type == TYPE_NONE) {
 			semanticError(SEMANTIC_TYPE_ERROR, "Invalid extension receiver",
@@ -431,7 +521,6 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 
 		functionScope.symbols = insertNode(functionScope.symbols, info);
 	}
-	// Register function parameters
 	for (size_t i = 0; i < node->data.funcDef.paramLists.count; i++) {
 
 		astNode *list = node->data.funcDef.paramLists.items[i];
@@ -469,11 +558,18 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 		return;
 	}
 
-	if (declaredType != TYPE_NONE && declaredType != actualType &&
+	bool bodyAlwaysReturns = alwaysReturns(node->data.funcDef.body);
+
+	if (!bodyAlwaysReturns &&
+		declaredType != TYPE_NONE &&
+		declaredType != actualType &&
 		!(declaredType == TYPE_DOUBLE && actualType == TYPE_INT)) {
 
-		semanticError(SEMANTIC_TYPE_ERROR, "Function return type mismatch",
-					  node);
+		semanticError(
+			SEMANTIC_TYPE_ERROR,
+			"Function return type mismatch",
+			node
+		);
 		return;
 	}
 
@@ -507,25 +603,45 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 
 static void analyzeCall(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_CALL) {
-		semanticError(INTERNAL_ERROR, "Invalid function call node", node);
-		return;
-	}
+        semanticError(INTERNAL_ERROR, "Invalid function call node", node);
+        return;
+    }
 
-	astNode *callee = node->data.call.callee;
+    size_t totalArgs = 0;
+    size_t totalLists = 0;
 
-	if (node->data.call.callee->type != AST_IDENTIFIER &&
-		node->data.call.callee->type != AST_MEMBER) {
-		semanticError(INTERNAL_ERROR, "Unsupported callee type", callee);
-		return;
-	}
-	AVLNode *callFunc = NULL;
+    astNode *callee = node;
+
+    while (callee != NULL && callee->type == AST_CALL) {
+		analyzeNodeList(callee->data.call.args, scope);
+
+        totalArgs += callee->data.call.args.count;
+
+        totalLists++;
+
+        callee = callee->data.call.callee;
+    }
+
+    if (callee == NULL) {
+        semanticError(INTERNAL_ERROR, "Missing call target", node);
+        return;
+    }
+
+    if (callee->type != AST_IDENTIFIER &&
+        callee->type != AST_MEMBER) {
+        semanticError(INTERNAL_ERROR, "Unsupported callee type", callee);
+        return;
+    }
+
+    AVLNode *callFunc = NULL;
 	if (callee->type == AST_IDENTIFIER) {
 		callFunc = searchSymbolInScope(
-			scope, node->data.call.callee->data.identifier.name);
+			scope, callee->data.identifier.name);
 	} else if (callee->type == AST_MEMBER) {
 
 		callFunc = lookupExtension(callee, scope);
 	}
+
 
 	if (callFunc == NULL) {
 		semanticError(SEMANTIC_UNDEFINITION_ERROR,
@@ -571,18 +687,14 @@ static void analyzeCall(astNode *node, Scope *scope) {
 		}
 	}
 
-	analyzeNodeList(node->data.call.args, scope);
 
-	if (node->data.call.args.count != callFunc->params.param_count) {
+	if (totalArgs != callFunc->params.param_count) {
 		semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
 					  "Function call argument count mismatch", node);
 		return;
 	}
 
-	// if (node->data.call.args.count == 0) {
-	// 	node->dataType = callFunc->params.data;
-	// 	return;
-	// }
+
 
 	for (size_t i = 0; i < node->data.call.args.count; i++) {
 
@@ -883,7 +995,7 @@ static void analyzeFor(astNode *node, Scope *scope) {
 						  "For loop 'step' expression must be of type int",
 						  stepNode);
 		}
-		if (stepNode->data.intValue <= 0) {
+		if (stepNode->data.intValue == 0) {
 			semanticError(SEMANTIC_TYPE_ERROR,
 						  "For loop 'step' expression cannot be zero",
 						  stepNode);
@@ -1091,6 +1203,7 @@ static void analyzeReturn(astNode *node, Scope *scope) {
 		}
 		current = current->parent;
 	}
+
 	if (function == NULL) {
 		semanticError(10, "Return outside function", node);
 		return;

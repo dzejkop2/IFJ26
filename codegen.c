@@ -14,8 +14,39 @@
 static void generateFunction(astNode *node, astNode *receiver);
 static void generateExtension(astNode *node);
 static void generateNode(astNode *node);
+static const char *getBuiltinExtensionLabel(astDataType receiverType,
+    const char *name);
+
 static size_t labelCounter;
 static astDataType returnType;
+
+static astNode *programRoot = NULL;
+
+
+static int isZeroListFunction(astNode *node) {
+    if (programRoot == NULL || node == NULL ||
+        node->type != AST_IDENTIFIER)
+        return 0;
+
+    astNodeList defs = programRoot->data.program.defs;
+
+    for (size_t i = 0; i < defs.count; i++) {
+        astNode *def = defs.items[i];
+
+        if (def == NULL || def->type != AST_FUN_DEF)
+            continue;
+
+        if (strcmp(def->data.funcDef.name,
+                   node->data.identifier.name) == 0 &&
+            def->scopeId == node->scopeId &&
+            def->data.funcDef.paramLists.count == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 
 static void generateVariableName(const char *name, int scopeId) {
 	printf("LF@%s$%d", name, scopeId);
@@ -24,6 +55,33 @@ static void generateVariableName(const char *name, int scopeId) {
 static const char *builtinNames[] = {
 	"print",	 "readLine", "readInt", "readDouble", "toStr",		 "toInt",
 	"strLength", "subStr",	 "ord",		"chr",		  "readBoolean", "floor"};
+
+#include <string.h>
+
+static const char *getBuiltinExtensionLabel(
+    astDataType receiverType,
+    const char *name
+) {
+    if (strcmp(name, "toString") == 0) {
+        return "$$toStr";
+    }
+
+    if (receiverType == TYPE_DOUBLE) {
+        if (strcmp(name, "toInt") == 0)
+            return "$$toInt";
+
+        if (strcmp(name, "floor") == 0)
+            return "$$floor";
+    }
+
+    if (receiverType == TYPE_STRING &&
+        strcmp(name, "length") == 0) {
+        return "$$strLength";
+    }
+
+    return NULL;
+}
+
 
 static void generateDeclarations(astNode *node) {
 	if (node == NULL)
@@ -105,9 +163,9 @@ static void generateFunction(astNode *node, astNode *receiver) {
 	}
 	if (receiver != NULL) {
 		printf("DEFVAR LF@%s$%d\n", receiver->data.param.name,
-			   receiver->scopeId);
+			   node->scopeId);
 
-		printf("POPS LF@%s$%d\n", receiver->data.param.name, receiver->scopeId);
+		printf("POPS LF@%s$%d\n", receiver->data.param.name, node->scopeId);
 	}
 
 	printf("DEFVAR LF@%%discard\nDEFVAR LF@%%left\nDEFVAR LF@%%right\n");
@@ -123,6 +181,20 @@ static void generateFunction(astNode *node, astNode *receiver) {
 
 	printf("\nPOPFRAME\n");
 	printf("RETURN\n\n");
+}
+
+static void generateCallArguments(astNode *node) {
+    if (node == NULL || node->type != AST_CALL)
+        return;
+
+    if (node->data.call.callee != NULL &&
+        node->data.call.callee->type == AST_CALL) {
+        generateCallArguments(node->data.call.callee);
+    }
+
+    for (size_t i = 0; i < node->data.call.args.count; i++) {
+        generateNode(node->data.call.args.items[i]);
+    }
 }
 
 static void generateNode(astNode *node) {
@@ -166,11 +238,23 @@ static void generateNode(astNode *node) {
 		}
 		putchar('\n');
 		break;
+
 	case AST_IDENTIFIER:
-		printf("PUSHS ");
-		generateVariableName(node->data.identifier.name, node->scopeId);
-		putchar('\n');
-		break;
+		if (isZeroListFunction(node)) {
+			printf("CALL fun$%s\n", node->data.identifier.name);
+		} else {
+			fprintf(stderr, "[CODEGEN] %s -> scope %d\n",
+            node->data.identifier.name,
+            node->scopeId);
+			printf("PUSHS ");
+			generateVariableName(
+				node->data.identifier.name,
+				node->scopeId
+			);
+			putchar('\n');
+		}
+		
+    	break;
 	case AST_VAR_DECL:
 		generateNode(node->data.varDecl.value);
 		if (node->data.varDecl.declType == TYPE_DOUBLE &&
@@ -253,19 +337,39 @@ static void generateNode(astNode *node) {
 		printf("POPS LF@%%forStep$%d\n", scopeId);
 
 		printf("LABEL $$for$%zu\n", label);
+		printf("PUSHS LF@%%forStep$%d\n", scopeId);
+		printf("PUSHS int@0\n");
+		printf("GTS\n");
+		printf("PUSHS bool@true\n");
+		printf("JUMPIFEQS $$forPositive$%zu\n", label);
 
 		printf("PUSHS LF@%s$%d\n", iterName, scopeId);
 		printf("PUSHS LF@%%forTo$%d\n", scopeId);
 
 		if (node->data.forLoop.isInclusive) {
-			printf("GTS\n");
-			printf("PUSHS bool@true\n");
-		} else {
 			printf("LTS\n");
-			printf("PUSHS bool@false\n");
+		} else {
+			printf("GTS\nNOTS\n");
 		}
 
+		printf("PUSHS bool@true\n");
 		printf("JUMPIFEQS $$endfor$%zu\n", label);
+		printf("JUMP $$forBody$%zu\n", label);
+
+		printf("LABEL $$forPositive$%zu\n", label);
+		printf("PUSHS LF@%s$%d\n", iterName, scopeId);
+		printf("PUSHS LF@%%forTo$%d\n", scopeId);
+
+		if (node->data.forLoop.isInclusive) {
+			printf("GTS\n");
+		} else {
+			printf("LTS\nNOTS\n");
+		}
+
+		printf("PUSHS bool@true\n");
+		printf("JUMPIFEQS $$endfor$%zu\n", label);
+
+		printf("LABEL $$forBody$%zu\n", label);
 
 		for (size_t i = 0; i < node->data.forLoop.guards.count; i++) {
 			generateNode(node->data.forLoop.guards.items[i]);
@@ -288,6 +392,7 @@ static void generateNode(astNode *node) {
 		printf("POPS LF@%s$%d\n", iterName, scopeId);
 
 		printf("JUMP $$for$%zu\n", label);
+		
 
 		printf("LABEL $$endfor$%zu\n", label);
 
@@ -368,55 +473,84 @@ static void generateNode(astNode *node) {
 		}
 		break;
 	}
+	
+
 	case AST_CALL: {
+    astNode *callee = node;
 
-		astNode *callee = node->data.call.callee;
+    while (callee != NULL && callee->type == AST_CALL) {
+        callee = callee->data.call.callee;
+    }
 
-		if (callee->type == AST_MEMBER) {
+    if (callee == NULL) {
+        fprintf(stderr, "Missing call target\n");
+        exit(99);
+    }
 
-			astNode *object = callee->data.member.object;
+    if (callee->type == AST_MEMBER) {
+        astNode *object = callee->data.member.object;
+        const char *name = callee->data.member.name;
 
-			generateNode(object);
+        generateNode(object);
 
-			for (size_t i = 0; i < node->data.call.args.count; i++) {
-				generateNode(node->data.call.args.items[i]);
-			}
+        generateCallArguments(node);
 
-			printf("CALL fun$ext$%d$%s\n", (int)object->dataType,
-				   callee->data.member.name);
+        const char *label = getBuiltinExtensionLabel(
+            object->dataType,
+            name
+        );
 
-		} else if (callee->type == AST_IDENTIFIER) {
+        if (label != NULL) {
+            printf("CALL %s\n", label);
+        } else {
+            printf("CALL fun$ext$%d$%s\n",
+                   (int)object->dataType,
+                   name);
+        }
+    }
+    else if (callee->type == AST_IDENTIFIER) {
+        generateCallArguments(node);
 
-			for (size_t i = 0; i < node->data.call.args.count; i++) {
-				generateNode(node->data.call.args.items[i]);
-			}
+        const char *name = callee->data.identifier.name;
+        const char *prefix = "fun$";
 
-			const char *name = callee->data.identifier.name;
-			const char *prefix = "fun$";
+        for (size_t i = 0;
+             i < sizeof(builtinNames) / sizeof(*builtinNames);
+             i++) {
 
-			for (size_t i = 0; i < sizeof(builtinNames) / sizeof(*builtinNames);
-				 i++) {
+            if (strcmp(name, builtinNames[i]) == 0) {
+                prefix = "$$";
+                break;
+            }
+        }
 
-				if (strcmp(name, builtinNames[i]) == 0) {
-					prefix = "$$";
-					break;
-				}
-			}
+        printf("CALL %s%s\n", prefix, name);
+    }
+    else {
+        fprintf(stderr, "Unsupported callee type\n");
+        exit(99);
+    }
 
-			printf("CALL %s%s\n", prefix, name);
-		}
-
-		break;
-	}
+    break;
+}
 
 	case AST_MEMBER: {
 		astNode *object = node->data.member.object;
 
+		const char *label = getBuiltinExtensionLabel(
+			object->dataType,
+			node->data.member.name
+		);
+
 		generateNode(object);
 
-		printf("CALL fun$ext$%d$%s\n", (int)object->dataType,
-			   node->data.member.name);
-
+		if (label != NULL) {
+			printf("CALL %s\n", label);
+		} else {
+			printf("CALL fun$ext$%d$%s\n",
+				(int)object->dataType,
+				node->data.member.name);
+		}
 		break;
 	}
 	case AST_INTERP: {
@@ -456,6 +590,8 @@ void generateCode(astNode *root) {
 	if (root == NULL || root->type != AST_PROGRAM) {
 		return;
 	}
+
+	programRoot = root;
 
 	printf(".IFJcode26\n");
 
