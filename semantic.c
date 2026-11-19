@@ -133,6 +133,7 @@ void semanticAnalyze(astNode *root) {
 						 .depth = 0};
 	registerBuiltins(&globalScope);
 	analyzeNode(root, &globalScope);
+	destroyAVL(globalScope.symbols);
 }
 
 static void analyzeNode(astNode *node, Scope *scope) {
@@ -304,6 +305,7 @@ static void analyzeBlock(astNode *node, Scope *parentScope) {
 			node->dataType = last->dataType;
 		}
 	}
+	destroyAVL(blockScope.symbols);
 }
 
 static void analyzeVarDecl(astNode *node, Scope *scope) {
@@ -920,6 +922,7 @@ static void analyzeFor(astNode *node, Scope *scope) {
 		}
 	}
 	analyzeNode(bodyNode, &forScope);
+	destroyAVL(forScope.symbols);
 }
 
 static void analyzeWhile(astNode *node, Scope *scope) {
@@ -946,6 +949,7 @@ static void analyzeWhile(astNode *node, Scope *scope) {
 						.depth = scope->depth + 1};
 
 	analyzeNode(node->data.whileLoop.body, &whileScope);
+	destroyAVL(whileScope.symbols);
 }
 
 static void registerExtension(astNode *node, Scope *scope) {
