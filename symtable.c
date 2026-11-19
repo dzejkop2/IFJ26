@@ -197,77 +197,29 @@ AVLNode *insertNode(AVLNode *root, paramInfo params) {
 	return root;
 }
 
-AVLNode *getSuccessor(AVLNode *node) {
-	node = node->right;
+void deleteNode(AVLNode *node) {
+	free(node->params.name);
 
-	while (node->left != NULL) {
-		node = node->left;
+	if (node->params.node_type == FUNCTION) {
+		if (node->params.param_count != 0) {
+			for (size_t i = 0; i < node->params.param_count; i++) {
+				free(node->params.param_list[i].name);
+			}
+			free(node->params.param_list);
+		}
 	}
 
-	return node;
+	free(node);
 }
 
-AVLNode *deleteNode(AVLNode *root, char *name) {
+void destroyAVL(AVLNode *root) {
 	if (root == NULL)
-		return root;
+		return;
 
-	int res = strcmp(root->params.name, name);
-	if (res > 0) {
-		root->left = deleteNode(root->left, name);
-	} else if (res < 0) {
-		root->right = deleteNode(root->right, name);
-	} else {
-		AVLNode *temp_node;
-		if (root->left == NULL) {
-			temp_node = root->right;
-			free(root->params.name);
-			free(root);
-			return temp_node;
-		} else if (root->right == NULL) {
-			temp_node = root->left;
-			free(root->params.name);
-			free(root);
-			return temp_node;
-		}
+	if (root->left != NULL)
+		destroyAVL(root->left);
+	if (root->right != NULL)
+		destroyAVL(root->right);
 
-		// find inorder successor
-		temp_node = getSuccessor(root);
-
-		char *temp_name = malloc(strlen(temp_node->params.name) + 1);
-		if (temp_name == NULL) {
-			fprintf(stderr, "Error (deleteNode): Could not allocate memory for "
-							"temp_name (char *).\n");
-			return root;
-		}
-		free(root->params.name);
-
-		root->params.name = temp_name;
-		strcpy(root->params.name, temp_node->params.name);
-		root->params.type = temp_node->params.type;
-		root->params.is_mutable = temp_node->params.is_mutable;
-		root->params.node_type = temp_node->params.node_type;
-		root->params.param_count = temp_node->params.param_count;
-		root->params.scope = temp_node->params.scope;
-		root->params.depth = temp_node->params.depth;
-
-		root->right = deleteNode(root->right, root->params.name);
-	}
-
-	root->height = 1 + max(getHeight(root->left), getHeight(root->right));
-
-	int bf = getBalanceFactor(root);
-
-	if (bf > 1) {
-		if (getBalanceFactor(root->left) < 0)
-			root->left = leftRotate(root->left);
-		return rightRotate(root);
-	}
-
-	if (bf < -1) {
-		if (getBalanceFactor(root->right) > 0)
-			root->right = rightRotate(root->right);
-		return leftRotate(root);
-	}
-
-	return root;
+	deleteNode(root);
 }

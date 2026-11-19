@@ -49,6 +49,6 @@ AVLNode *initTree(void);
 bool symtableIsEmpty(AVLNode *root);
 AVLNode *searchNode(AVLNode *root, char *string);
 AVLNode *insertNode(AVLNode *root, paramInfo params);
-AVLNode *deleteNode(AVLNode *node, char *name);
+void destroyAVL(AVLNode *root);
 
 #endif
