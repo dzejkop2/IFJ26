@@ -6,17 +6,15 @@
 #include "error.h"
 #include <stdio.h>
 #include <stdlib.h>
- 
-void error(int errorNum, const char* errorMsg) {
-    if (errorMsg != NULL) {
-        fprintf(stderr, "ERROR: %d\nms: %s\n", errorNum, errorMsg);
-    } else {
-        fprintf(stderr, "ERROR: %d\n", errorNum);
-    }
-    exit(errorNum);
 
-    
-    // fprintf(stderr, "Error %d: %s\n", errorNum, errorMsg);
-    // exit(errorNum);
+void error(int errorNum, const char *errorMsg) {
+	if (errorMsg != NULL) {
+		fprintf(stderr, "ERROR: %d\nms: %s\n", errorNum, errorMsg);
+	} else {
+		fprintf(stderr, "ERROR: %d\n", errorNum);
+	}
+	exit(errorNum);
 
+	// fprintf(stderr, "Error %d: %s\n", errorNum, errorMsg);
+	// exit(errorNum);
 }
