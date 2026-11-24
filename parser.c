@@ -185,9 +185,7 @@ astNode *parse(void) {
 
 	if (program == NULL) {
 		error(SYNTAX_ERROR, "Invalid program structure");
-	} else {
-		printf("Program parsed successfully.\n");
-	}
+	} 
 
 	parserMarkAttached(program);
 	parserCleanup();
@@ -266,7 +264,7 @@ void parseGlobalDefs(astNodeList *defs) {
 
 		if (def->type == AST_FUN_DEF && def->data.funcDef.isMain) {
 			if (mainFound) {
-				error(SYNTAX_ERROR, "Multiple main functions found");
+				error(SEMANTIC_REDEFINITION_ERROR, "Multiple main functions found");
 			}
 			mainFound = true;
 		}

@@ -21,6 +21,8 @@ static const char *typeName(astDataType type) {
             return "Unit";
         case TYPE_BOOL:
             return "Boolean";
+		case TYPE_ANY:
+            return "Any";
     }
     return "?";
 }

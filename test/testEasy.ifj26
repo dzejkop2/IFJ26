@@ -1,6 +1,7 @@
 import ifj26.*
 
 def factorial(n: Int): Int =
+  var txt: Int = "wasd"
   var result = 1
   var i: Int = n  // uvedeni typu je nepovinne
   while i > 1 do
