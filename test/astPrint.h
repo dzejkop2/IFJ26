@@ -9,6 +9,6 @@
 
 #include "../ast.h"
 
-void ast_print(const astNode *node, int depth); 
+void astPrint(const astNode *node, int depth);
 
 #endif

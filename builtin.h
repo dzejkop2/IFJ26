@@ -1,35 +1,65 @@
 /**
  * @name ifj26
- * @authors TODO
+ * @authors Tomáš Zajac (xzajact00)
  * @file builtin.h
+ *
+ * AI usage:
+ * "Create function stubs for built in functions"
  */
 
 #ifndef BUILTIN_H
 #define BUILTIN_H
 
-/** print(value: Any): Unit */
+/**
+ * @brief Generates the "print" built in function
+ */
 void builtinGenPrint(void);
-/** readLine(): String */
+/**
+ * @brief Generates the "readLine" built in function
+ */
 void builtinGenReadLine(void);
-/** readInt(): Int */
+/**
+ * @brief Generates the "readInt" built in function
+ */
 void builtinGenReadInt(void);
-/** readDouble(): Double */
+/**
+ * @brief Generates the "readDouble" built in function
+ */
 void builtinGenReadDouble(void);
-/** toStr(value: Any): String */
+/**
+ * @brief Generates the "toStr" built in function
+ */
 void builtinGenToStr(void);
-/** toInt(value: Double): Int */
+/**
+ * @brief Generates the "toInt" built in function
+ */
 void builtinGenToInt(void);
-/** strLength(value: String): Int */
+/**
+ * @brief Generates the "strLength" built in function
+ */
 void builtinGenStrLength(void);
-/** subStr(value: String, start: Int, end: Int): String */
+/**
+ * @brief Generates the "subStr" built in function
+ */
 void builtinGenSubStr(void);
-/** ord(value: String, index: Int): Int */
+/**
+ * @brief Generates the "ord" built in function
+ */
 void builtinGenOrd(void);
-/** chr(code: Int): String */
+/**
+ * @brief Generates the "chr" built in function
+ */
 void builtinGenChr(void);
-/** readBoolean(): Boolean */
+
+// Extensions built in functions
+
+/**
+ * @brief Generates the "readBoolean" built in function
+ */
 void builtinGenReadBoolean(void);
-/** x.floor: Double */
+/**
+ * @brief Generates the "floor" built in member call
+ */
 void builtinGenFloor(void);
 
 #endif
