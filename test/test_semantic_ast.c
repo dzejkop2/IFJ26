@@ -189,65 +189,65 @@ static char *owned(const char *value) {
 	return copy;
 }
 
-static astNode *integer(long long value) { return ast_newIntLit(value, 1, 1); }
-static astNode *real(double value) { return ast_newDoubleLit(value, 1, 1); }
+static astNode *integer(long long value) { return astNewIntLit(value, 1, 1); }
+static astNode *real(double value) { return astNewDoubleLit(value, 1, 1); }
 static astNode *string(const char *value) {
-	return ast_newStringLit(owned(value), 1, 1);
+	return astNewStringLit(owned(value), 1, 1);
 }
-static astNode *boolean(bool value) { return ast_newBoolLit(value, 1, 1); }
-static astNode *unit(void) { return ast_newUnitLit(1, 1); }
+static astNode *boolean(bool value) { return astNewBoolLit(value, 1, 1); }
+static astNode *unit(void) { return astNewUnitLit(1, 1); }
 static astNode *ident(const char *name) {
-	return ast_newIdentifier(owned(name), 1, 1);
+	return astNewIdentifier(owned(name), 1, 1);
 }
 static astNode *binary(specTokenType op, astNode *a, astNode *b) {
-	return ast_newBinary(op, a, b, 1, 1);
+	return astNewBinary(op, a, b, 1, 1);
 }
 static astNode *unary(specTokenType op, astNode *a) {
-	return ast_newUnary(op, a, 1, 1);
+	return astNewUnary(op, a, 1, 1);
 }
-static astNode *block(void) { return ast_newBlock(1, 1); }
-static astNode *statement(astNode *expr) { return ast_newExprStmt(expr, 1, 1); }
+static astNode *block(void) { return astNewBlock(1, 1); }
+static astNode *statement(astNode *expr) { return astNewExprStmt(expr, 1, 1); }
 static astNode *decl(const char *name, astDataType type, astNode *value,
 					 bool mutable) {
-	return ast_newVarDecl(owned(name), type, value, mutable, 1, 1);
+	return astNewVarDecl(owned(name), type, value, mutable, 1, 1);
 }
 static astNode *assign(const char *name, astNode *value) {
-	return ast_newAssign(ident(name), value, 1, 1);
+	return astNewAssign(ident(name), value, 1, 1);
 }
 static astNode *compare(void) {
 	return binary(op_lowerThen, integer(1), integer(2));
 }
 static astNode *func(const char *name, astDataType result, astNode *body) {
-	astNode *f = ast_newFuncDef(owned(name), false, 1, 1);
+	astNode *f = astNewFuncDef(owned(name), false, 1, 1);
 	f->data.funcDef.retType = result;
 	f->data.funcDef.body = body;
 	return f;
 }
 static astNode *extension(const char *receiverName) {
-	return ast_newExtension(ast_newParam(owned(receiverName), TYPE_INT, 1, 1),
+	return astNewExtension(astNewParam(owned(receiverName), TYPE_INT, 1, 1),
 							1, 1);
 }
 static astNode *call(const char *name) {
-	return ast_newCall(ident(name), 1, 1);
+	return astNewCall(ident(name), 1, 1);
 }
 static void add(astNodeList *list, astNode *child) {
-	ast_listAppend(list, child);
+	astListAppend(list, child);
 }
 static void stmt(astNode *b, astNode *child) {
 	add(&b->data.block.stmts, child);
 }
 
 static astNode *interp(void) {
-	astNode *node = ast_newNode(AST_INTERP, 1, 1);
+	astNode *node = astNewNode(AST_INTERP, 1, 1);
 
-	ast_listInit(&node->data.interp.parts);
+	astListInit(&node->data.interp.parts);
 
 	return node;
 }
 
 static astNode *program(void) {
-	astNode *p = ast_newProgram(owned("ifj26"), 1, 1);
-	astNode *m = ast_newFuncDef(owned("main"), true, 1, 1);
+	astNode *p = astNewProgram(owned("ifj26"), 1, 1);
+	astNode *m = astNewFuncDef(owned("main"), true, 1, 1);
 	m->data.funcDef.retType = TYPE_UNIT;
 	m->data.funcDef.body = block();
 	add(&p->data.program.defs, m);
@@ -268,12 +268,12 @@ static void addFunc(astNode *p, astNode *f) { add(&p->data.program.defs, f); }
 static void param(astNode *function, const char *name, astDataType type) {
 	astNode *list;
 	if (function->data.funcDef.paramLists.count == 0) {
-		list = ast_newParamList(1, 1);
+		list = astNewParamList(1, 1);
 		add(&function->data.funcDef.paramLists, list);
 	} else {
 		list = function->data.funcDef.paramLists.items[0];
 	}
-	add(&list->data.paramList.params, ast_newParam(owned(name), type, 1, 1));
+	add(&list->data.paramList.params, astNewParam(owned(name), type, 1, 1));
 }
 
 static astNode *build(astNodeType kind, TestMode mode) {
@@ -318,7 +318,7 @@ static astNode *build(astNodeType kind, TestMode mode) {
 		if (mode != EDGE) {
 			param(f, "a", TYPE_INT);
 		} else {
-			add(&f->data.funcDef.paramLists, ast_newParamList(1, 1));
+			add(&f->data.funcDef.paramLists, astNewParamList(1, 1));
 		}
 		if (mode == FAIL)
 			param(f, "a", TYPE_INT);
@@ -336,7 +336,7 @@ static astNode *build(astNodeType kind, TestMode mode) {
 		} else {
 			param(f, "arg", mode == FAIL ? TYPE_NONE : TYPE_INT);
 			if (mode == PASS) {
-				ast_free(f->data.funcDef.body);
+				astFree(f->data.funcDef.body);
 				f->data.funcDef.body = ident("arg");
 			}
 		}
@@ -350,7 +350,7 @@ static astNode *build(astNodeType kind, TestMode mode) {
 			stmt(b, decl("x", TYPE_INT, integer(1), true));
 		if (mode == FAIL)
 			stmt(b, decl("hidden", TYPE_INT, integer(1), true));
-		stmt(mainBlock(p), ast_newIf(compare(), b, NULL, 1, 1));
+		stmt(mainBlock(p), astNewIf(compare(), b, NULL, 1, 1));
 		if (mode == FAIL)
 			stmt(mainBlock(p), statement(ident("hidden")));
 		return p;
@@ -369,7 +369,7 @@ static astNode *build(astNodeType kind, TestMode mode) {
 		if (mode == EDGE) {
 			e = block();
 			stmt(e, assign("x", integer(8)));
-			stmt(b, ast_newIf(compare(), e, NULL, 1, 1));
+			stmt(b, astNewIf(compare(), e, NULL, 1, 1));
 		} else {
 			stmt(b, assign("x", integer(8)));
 		}
@@ -379,21 +379,21 @@ static astNode *build(astNodeType kind, TestMode mode) {
 		p = program();
 		f = func("f", mode == EDGE ? TYPE_UNIT : TYPE_INT,
 				 mode == FAIL
-					 ? ast_newReturn(string("bad"), 1, 1)
-					 : ast_newReturn(mode == EDGE ? unit() : integer(1), 1, 1));
+					 ? astNewReturn(string("bad"), 1, 1)
+					 : astNewReturn(mode == EDGE ? unit() : integer(1), 1, 1));
 		addFunc(p, f);
 		return p;
 
 	case AST_WHILE:
 		loop =
-			ast_newWhile(mode == FAIL ? integer(1) : compare(), block(), 1, 1);
+			astNewWhile(mode == FAIL ? integer(1) : compare(), block(), 1, 1);
 		if (mode == EDGE)
 			stmt(loop->data.whileLoop.body,
-				 ast_newWhile(compare(), block(), 1, 1));
+				 astNewWhile(compare(), block(), 1, 1));
 		return withStmt(loop);
 
 	case AST_FOR:
-		loop = ast_newFor(owned("i"), 1, 1);
+		loop = astNewFor(owned("i"), 1, 1);
 		loop->data.forLoop.from = mode == FAIL ? string("bad") : integer(0);
 		loop->data.forLoop.to = integer(3);
 		if (mode != EDGE)
@@ -413,7 +413,7 @@ static astNode *build(astNodeType kind, TestMode mode) {
 		return p;
 
 	case AST_IF:
-		return withStmt(ast_newIf(mode == FAIL ? integer(5) : compare(),
+		return withStmt(astNewIf(mode == FAIL ? integer(5) : compare(),
 								  block(), mode == EDGE ? NULL : block(), 1,
 								  1));
 
@@ -435,7 +435,7 @@ static astNode *build(astNodeType kind, TestMode mode) {
 	case AST_LIT_BOOL:
 		if (mode == FAIL)
 			return withDecl(TYPE_INT, boolean(true));
-		return withStmt(ast_newIf(boolean(mode == PASS), block(), NULL, 1, 1));
+		return withStmt(astNewIf(boolean(mode == PASS), block(), NULL, 1, 1));
 
 	case AST_LIT_UNIT:
 		if (mode == FAIL)
@@ -443,7 +443,7 @@ static astNode *build(astNodeType kind, TestMode mode) {
 		if (mode == EDGE)
 			return withStmt(statement(unit()));
 		p = program();
-		addFunc(p, func("f", TYPE_UNIT, ast_newReturn(unit(), 1, 1)));
+		addFunc(p, func("f", TYPE_UNIT, astNewReturn(unit(), 1, 1)));
 		return p;
 
 	case AST_IDENTIFIER:
@@ -456,7 +456,7 @@ static astNode *build(astNodeType kind, TestMode mode) {
 			e = block();
 			stmt(e, decl("x", TYPE_INT, integer(2), true));
 			stmt(e, statement(ident("x")));
-			stmt(b, ast_newIf(compare(), e, NULL, 1, 1));
+			stmt(b, astNewIf(compare(), e, NULL, 1, 1));
 		} else {
 			stmt(b, statement(ident("x")));
 		}
@@ -560,19 +560,19 @@ static astNode *build(astNodeType kind, TestMode mode) {
 			ext = extension("self");
 			add(&ext->data.extension.funDefs, func("m", TYPE_INT, integer(1)));
 			add(&p->data.program.defs, ext);
-			e = ast_newMember(ident("obj"), owned("m"), 1, 1);
-			c = ast_newCall(e, 1, 1);
+			e = astNewMember(ident("obj"), owned("m"), 1, 1);
+			c = astNewCall(e, 1, 1);
 			stmt(mainBlock(p), statement(c));
 		} else if (mode == FAIL) {
-			stmt(mainBlock(p), statement(ast_newMember(
+			stmt(mainBlock(p), statement(astNewMember(
 								   ident("obj"), owned("missing"), 1, 1)));
 		} else {
 			ext = extension("self");
 			add(&ext->data.extension.funDefs, func("m", TYPE_INT, integer(1)));
 			add(&p->data.program.defs, ext);
-			e = ast_newMember(binary(op_add, integer(1), integer(2)),
+			e = astNewMember(binary(op_add, integer(1), integer(2)),
 							  owned("m"), 1, 1);
-			stmt(mainBlock(p), statement(ast_newCall(e, 1, 1)));
+			stmt(mainBlock(p), statement(astNewCall(e, 1, 1)));
 		}
 		return p;
 	case AST_INTERP:
@@ -648,6 +648,6 @@ int main(int argc, char **argv) {
 #ifndef AST_SMOKE_ONLY
 	semanticAnalyze(root);
 #endif
-	ast_free(root);
+	astFree(root);
 	return 0;
 }

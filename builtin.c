@@ -1,6 +1,6 @@
 /**
  * @name ifj26
- * @authors TODO
+ * @authors Tomáš Zajac (xzajact00)
  * @file builtin.c
  */
 
@@ -145,29 +145,29 @@ void builtinGenSubStr(void) {
 	printf("DEFVAR LF@len\n");
 	printf("STRLEN LF@len LF@value\n");
 	printf("DEFVAR LF@tmp\n");
-    printf("LT LF@tmp LF@start int@0\n");
-    printf("JUMPIFEQ $$subStr$error LF@tmp bool@true\n");
-    printf("LT LF@tmp LF@end int@0\n");
-    printf("JUMPIFEQ $$subStr$error LF@tmp bool@true\n");
-    printf("GT LF@tmp LF@start LF@end\n");
-    printf("JUMPIFEQ $$subStr$error LF@tmp bool@true\n");
-    printf("GT LF@tmp LF@end LF@len\n");
-    printf("JUMPIFEQ $$subStr$error LF@tmp bool@true\n");
-    printf("LT LF@tmp LF@start LF@len\n");
-    printf("JUMPIFEQ $$subStr$error LF@tmp bool@false\n");
+	printf("LT LF@tmp LF@start int@0\n");
+	printf("JUMPIFEQ $$subStr$error LF@tmp bool@true\n");
+	printf("LT LF@tmp LF@end int@0\n");
+	printf("JUMPIFEQ $$subStr$error LF@tmp bool@true\n");
+	printf("GT LF@tmp LF@start LF@end\n");
+	printf("JUMPIFEQ $$subStr$error LF@tmp bool@true\n");
+	printf("GT LF@tmp LF@end LF@len\n");
+	printf("JUMPIFEQ $$subStr$error LF@tmp bool@true\n");
+	printf("LT LF@tmp LF@start LF@len\n");
+	printf("JUMPIFEQ $$subStr$error LF@tmp bool@false\n");
 	printf("DEFVAR LF@result\n");
 	printf("DEFVAR LF@counter\n");
 	printf("DEFVAR LF@curr_char\n");
-    printf("MOVE LF@result string@\n");
-    printf("MOVE LF@counter LF@start\n");
-    printf("LABEL $$subStr$loop\n");
-    printf("JUMPIFEQ $$subStr$end LF@end LF@counter\n");
-    printf("GETCHAR LF@curr_char LF@value LF@counter\n");
-    printf("CONCAT LF@result LF@result LF@curr_char\n");
-    printf("ADD LF@counter LF@counter int@1\n");
-    printf("JUMP $$subStr$loop\n");
+	printf("MOVE LF@result string@\n");
+	printf("MOVE LF@counter LF@start\n");
+	printf("LABEL $$subStr$loop\n");
+	printf("JUMPIFEQ $$subStr$end LF@end LF@counter\n");
+	printf("GETCHAR LF@curr_char LF@value LF@counter\n");
+	printf("CONCAT LF@result LF@result LF@curr_char\n");
+	printf("ADD LF@counter LF@counter int@1\n");
+	printf("JUMP $$subStr$loop\n");
 	printf("LABEL $$subStr$error\n");
-    printf("EXIT int@40\n");
+	printf("EXIT int@40\n");
 	printf("LABEL $$subStr$end\n");
 	printf("PUSHS LF@result\n");
 	printf("POPFRAME\n");
@@ -187,13 +187,13 @@ void builtinGenOrd(void) {
 	printf("DEFVAR LF@result\n");
 	printf("STRLEN LF@len LF@value\n");
 	printf("LT LF@tmp LF@index int@0\n");
-    printf("JUMPIFEQ $$ord$error LF@tmp bool@true\n");
+	printf("JUMPIFEQ $$ord$error LF@tmp bool@true\n");
 	printf("LT LF@tmp LF@index LF@len\n");
-    printf("JUMPIFEQ $$ord$error LF@tmp bool@false\n");
-    printf("STRI2INT LF@result LF@value LF@index\n");
-    printf("JUMP $$ord$end\n");
+	printf("JUMPIFEQ $$ord$error LF@tmp bool@false\n");
+	printf("STRI2INT LF@result LF@value LF@index\n");
+	printf("JUMP $$ord$end\n");
 	printf("LABEL $$ord$error\n");
-    printf("MOVE LF@result int@-1\n");
+	printf("MOVE LF@result int@-1\n");
 	printf("LABEL $$ord$end\n");
 	printf("PUSHS LF@result\n");
 	printf("POPFRAME\n");
@@ -234,15 +234,15 @@ void builtinGenFloor(void) {
 	printf("DEFVAR LF@back\n");
 	printf("DEFVAR LF@tmp\n");
 	printf("DEFVAR LF@result\n");
-    printf("FLOAT2INT LF@int_part LF@x\n");
-    printf("INT2FLOAT LF@back LF@int_part\n");
-    printf("GT LF@tmp LF@back LF@x\n");
-    printf("JUMPIFEQ $$floor$neg LF@tmp bool@true\n");
-    printf("MOVE LF@result LF@back\n");
-    printf("JUMP $$floor$end\n");
-    printf("LABEL $$floor$neg\n");
-    printf("SUB LF@result LF@back float@0x1p+0\n");
-    printf("LABEL $$floor$end\n");
+	printf("FLOAT2INT LF@int_part LF@x\n");
+	printf("INT2FLOAT LF@back LF@int_part\n");
+	printf("GT LF@tmp LF@back LF@x\n");
+	printf("JUMPIFEQ $$floor$neg LF@tmp bool@true\n");
+	printf("MOVE LF@result LF@back\n");
+	printf("JUMP $$floor$end\n");
+	printf("LABEL $$floor$neg\n");
+	printf("SUB LF@result LF@back float@0x1p+0\n");
+	printf("LABEL $$floor$end\n");
 	printf("PUSHS LF@result\n");
 	printf("POPFRAME\n");
 	printf("RETURN\n");

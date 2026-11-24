@@ -2,6 +2,11 @@
  * @name ifj26
  * @authors Jakub Geleta (xgeletj00)
  * @file ast.c
+ *
+ * AI useage:
+ * 	"Make tests for simple AST and check for correct filling"
+ *  "Make tests that check if every node is being created correctly"
+ * 	"Create stub functions for implementation"
  */
 
 #include <stdio.h>
@@ -11,13 +16,13 @@
 
 #define LIST_INIT_CAPACITY 4
 
-void ast_listInit(astNodeList *list) {
+void astListInit(astNodeList *list) {
 	list->items = NULL;
 	list->count = 0;
 	list->capacity = 0;
 }
 
-void ast_listAppend(astNodeList *list, astNode *node) {
+void astListAppend(astNodeList *list, astNode *node) {
 	if (list->count == list->capacity) {
 		size_t newCapacity = list->capacity;
 		if (newCapacity == 0)
@@ -38,20 +43,20 @@ void ast_listAppend(astNodeList *list, astNode *node) {
 	list->count++;
 }
 
-void ast_listFree(astNodeList *list) {
+void astListFree(astNodeList *list) {
 	free(list->items);
-	ast_listInit(list);
+	astListInit(list);
 }
 
 static void freeNodeList(astNodeList *list) {
 	for (size_t i = 0; i < list->count; i++) {
-		ast_free(list->items[i]);
+		astFree(list->items[i]);
 	}
 
-	ast_listFree(list);
+	astListFree(list);
 }
 
-astNode *ast_newNode(astNodeType type, int line, int col) {
+astNode *astNewNode(astNodeType type, int line, int col) {
 	astNode *node = calloc(1, sizeof(astNode));
 	if (node == NULL)
 		error(INTERNAL_ERROR, "AST node malloc memory failed");
@@ -63,7 +68,7 @@ astNode *ast_newNode(astNodeType type, int line, int col) {
 	return node;
 }
 
-void ast_free(astNode *node) {
+void astFree(astNode *node) {
 	if (node == NULL)
 		return;
 
@@ -75,10 +80,10 @@ void ast_free(astNode *node) {
 	case AST_FUN_DEF:
 		free(node->data.funcDef.name);
 		freeNodeList(&node->data.funcDef.paramLists);
-		ast_free(node->data.funcDef.body);
+		astFree(node->data.funcDef.body);
 		break;
 	case AST_EXTENSION:
-		ast_free(node->data.extension.receiver);
+		astFree(node->data.extension.receiver);
 		freeNodeList(&node->data.extension.funDefs);
 		break;
 	case AST_PARAM_LIST:
@@ -93,34 +98,34 @@ void ast_free(astNode *node) {
 		break;
 	case AST_VAR_DECL:
 		free(node->data.varDecl.name);
-		ast_free(node->data.varDecl.value);
+		astFree(node->data.varDecl.value);
 		break;
 	case AST_ASSIGN:
-		ast_free(node->data.assign.target);
-		ast_free(node->data.assign.value);
+		astFree(node->data.assign.target);
+		astFree(node->data.assign.value);
 		break;
 	case AST_RETURN:
-		ast_free(node->data.ret.value);
+		astFree(node->data.ret.value);
 		break;
 	case AST_WHILE:
-		ast_free(node->data.whileLoop.cond);
-		ast_free(node->data.whileLoop.body);
+		astFree(node->data.whileLoop.cond);
+		astFree(node->data.whileLoop.body);
 		break;
 	case AST_FOR:
 		free(node->data.forLoop.iterName);
-		ast_free(node->data.forLoop.from);
-		ast_free(node->data.forLoop.to);
-		ast_free(node->data.forLoop.step);
+		astFree(node->data.forLoop.from);
+		astFree(node->data.forLoop.to);
+		astFree(node->data.forLoop.step);
 		freeNodeList(&node->data.forLoop.guards);
-		ast_free(node->data.forLoop.body);
+		astFree(node->data.forLoop.body);
 		break;
 	case AST_EXPR_STMT:
-		ast_free(node->data.exprStmt.expr);
+		astFree(node->data.exprStmt.expr);
 		break;
 	case AST_IF:
-		ast_free(node->data.ifStmt.cond);
-		ast_free(node->data.ifStmt.thenBody);
-		ast_free(node->data.ifStmt.elseBody);
+		astFree(node->data.ifStmt.cond);
+		astFree(node->data.ifStmt.thenBody);
+		astFree(node->data.ifStmt.elseBody);
 		break;
 
 	case AST_LIT_STRING:
@@ -135,18 +140,18 @@ void ast_free(astNode *node) {
 		free(node->data.identifier.name);
 		break;
 	case AST_BINARY_OP:
-		ast_free(node->data.binary.left);
-		ast_free(node->data.binary.right);
+		astFree(node->data.binary.left);
+		astFree(node->data.binary.right);
 		break;
 	case AST_UNARY_OP:
-		ast_free(node->data.unary.operand);
+		astFree(node->data.unary.operand);
 		break;
 	case AST_CALL:
-		ast_free(node->data.call.callee);
+		astFree(node->data.call.callee);
 		freeNodeList(&node->data.call.args);
 		break;
 	case AST_MEMBER:
-		ast_free(node->data.member.object);
+		astFree(node->data.member.object);
 		free(node->data.member.name);
 		break;
 	case AST_INTERP:
@@ -157,20 +162,20 @@ void ast_free(astNode *node) {
 	free(node);
 }
 
-astNode *ast_newProgram(char *importName, int line, int col) {
-	astNode *node = ast_newNode(AST_PROGRAM, line, col);
+astNode *astNewProgram(char *importName, int line, int col) {
+	astNode *node = astNewNode(AST_PROGRAM, line, col);
 
 	node->data.program.importName = importName;
-	ast_listInit(&node->data.program.defs);
+	astListInit(&node->data.program.defs);
 
 	return node;
 }
 
-astNode *ast_newFuncDef(char *name, bool isMain, int line, int col) {
-	astNode *node = ast_newNode(AST_FUN_DEF, line, col);
+astNode *astNewFuncDef(char *name, bool isMain, int line, int col) {
+	astNode *node = astNewNode(AST_FUN_DEF, line, col);
 
 	node->data.funcDef.name = name;
-	ast_listInit(&node->data.funcDef.paramLists);
+	astListInit(&node->data.funcDef.paramLists);
 	node->data.funcDef.retType = TYPE_NONE;
 	node->data.funcDef.body = NULL;
 	node->data.funcDef.isMain = isMain;
@@ -178,25 +183,25 @@ astNode *ast_newFuncDef(char *name, bool isMain, int line, int col) {
 	return node;
 }
 
-astNode *ast_newExtension(astNode *receiver, int line, int col) {
-	astNode *node = ast_newNode(AST_EXTENSION, line, col);
+astNode *astNewExtension(astNode *receiver, int line, int col) {
+	astNode *node = astNewNode(AST_EXTENSION, line, col);
 
 	node->data.extension.receiver = receiver;
-	ast_listInit(&node->data.extension.funDefs);
+	astListInit(&node->data.extension.funDefs);
 
 	return node;
 }
 
-astNode *ast_newParamList(int line, int col) {
-	astNode *node = ast_newNode(AST_PARAM_LIST, line, col);
+astNode *astNewParamList(int line, int col) {
+	astNode *node = astNewNode(AST_PARAM_LIST, line, col);
 
-	ast_listInit(&node->data.paramList.params);
+	astListInit(&node->data.paramList.params);
 
 	return node;
 }
 
-astNode *ast_newParam(char *name, astDataType type, int line, int col) {
-	astNode *node = ast_newNode(AST_PARAM, line, col);
+astNode *astNewParam(char *name, astDataType type, int line, int col) {
+	astNode *node = astNewNode(AST_PARAM, line, col);
 
 	node->data.param.name = name;
 	node->data.param.type = type;
@@ -204,17 +209,17 @@ astNode *ast_newParam(char *name, astDataType type, int line, int col) {
 	return node;
 }
 
-astNode *ast_newBlock(int line, int col) {
-	astNode *node = ast_newNode(AST_BLOCK, line, col);
+astNode *astNewBlock(int line, int col) {
+	astNode *node = astNewNode(AST_BLOCK, line, col);
 
-	ast_listInit(&node->data.block.stmts);
+	astListInit(&node->data.block.stmts);
 
 	return node;
 }
 
-astNode *ast_newVarDecl(char *name, astDataType declType, astNode *value,
-						bool isMutable, int line, int col) {
-	astNode *node = ast_newNode(AST_VAR_DECL, line, col);
+astNode *astNewVarDecl(char *name, astDataType declType, astNode *value,
+					   bool isMutable, int line, int col) {
+	astNode *node = astNewNode(AST_VAR_DECL, line, col);
 
 	node->data.varDecl.name = name;
 	node->data.varDecl.declType = declType;
@@ -224,8 +229,8 @@ astNode *ast_newVarDecl(char *name, astDataType declType, astNode *value,
 	return node;
 }
 
-astNode *ast_newAssign(astNode *target, astNode *value, int line, int col) {
-	astNode *node = ast_newNode(AST_ASSIGN, line, col);
+astNode *astNewAssign(astNode *target, astNode *value, int line, int col) {
+	astNode *node = astNewNode(AST_ASSIGN, line, col);
 
 	node->data.assign.target = target;
 	node->data.assign.value = value;
@@ -233,16 +238,16 @@ astNode *ast_newAssign(astNode *target, astNode *value, int line, int col) {
 	return node;
 }
 
-astNode *ast_newReturn(astNode *value, int line, int col) {
-	astNode *node = ast_newNode(AST_RETURN, line, col);
+astNode *astNewReturn(astNode *value, int line, int col) {
+	astNode *node = astNewNode(AST_RETURN, line, col);
 
 	node->data.ret.value = value;
 
 	return node;
 }
 
-astNode *ast_newWhile(astNode *cond, astNode *body, int line, int col) {
-	astNode *node = ast_newNode(AST_WHILE, line, col);
+astNode *astNewWhile(astNode *cond, astNode *body, int line, int col) {
+	astNode *node = astNewNode(AST_WHILE, line, col);
 
 	node->data.whileLoop.cond = cond;
 	node->data.whileLoop.body = body;
@@ -250,23 +255,23 @@ astNode *ast_newWhile(astNode *cond, astNode *body, int line, int col) {
 	return node;
 }
 
-astNode *ast_newFor(char *iterName, int line, int col) {
-	astNode *node = ast_newNode(AST_FOR, line, col);
+astNode *astNewFor(char *iterName, int line, int col) {
+	astNode *node = astNewNode(AST_FOR, line, col);
 
 	node->data.forLoop.iterName = iterName;
 	node->data.forLoop.from = NULL;
 	node->data.forLoop.to = NULL;
 	node->data.forLoop.step = NULL;
 	node->data.forLoop.isInclusive = false;
-	ast_listInit(&node->data.forLoop.guards);
+	astListInit(&node->data.forLoop.guards);
 	node->data.forLoop.body = NULL;
 
 	return node;
 }
 
-astNode *ast_newIf(astNode *cond, astNode *thenBody, astNode *elseBody,
-				   int line, int col) {
-	astNode *node = ast_newNode(AST_IF, line, col);
+astNode *astNewIf(astNode *cond, astNode *thenBody, astNode *elseBody, int line,
+				  int col) {
+	astNode *node = astNewNode(AST_IF, line, col);
 
 	node->data.ifStmt.cond = cond;
 	node->data.ifStmt.thenBody = thenBody;
@@ -275,61 +280,61 @@ astNode *ast_newIf(astNode *cond, astNode *thenBody, astNode *elseBody,
 	return node;
 }
 
-astNode *ast_newExprStmt(astNode *expr, int line, int col) {
-	astNode *node = ast_newNode(AST_EXPR_STMT, line, col);
+astNode *astNewExprStmt(astNode *expr, int line, int col) {
+	astNode *node = astNewNode(AST_EXPR_STMT, line, col);
 
 	node->data.exprStmt.expr = expr;
 
 	return node;
 }
 
-astNode *ast_newIntLit(long long value, int line, int col) {
-	astNode *node = ast_newNode(AST_LIT_INT, line, col);
+astNode *astNewIntLit(long long value, int line, int col) {
+	astNode *node = astNewNode(AST_LIT_INT, line, col);
 
 	node->data.intValue = value;
 
 	return node;
 }
 
-astNode *ast_newDoubleLit(double value, int line, int col) {
-	astNode *node = ast_newNode(AST_LIT_DOUBLE, line, col);
+astNode *astNewDoubleLit(double value, int line, int col) {
+	astNode *node = astNewNode(AST_LIT_DOUBLE, line, col);
 
 	node->data.doubleValue = value;
 
 	return node;
 }
 
-astNode *ast_newStringLit(char *value, int line, int col) {
-	astNode *node = ast_newNode(AST_LIT_STRING, line, col);
+astNode *astNewStringLit(char *value, int line, int col) {
+	astNode *node = astNewNode(AST_LIT_STRING, line, col);
 
 	node->data.stringValue = value;
 
 	return node;
 }
 
-astNode *ast_newBoolLit(bool value, int line, int col) {
-	astNode *node = ast_newNode(AST_LIT_BOOL, line, col);
+astNode *astNewBoolLit(bool value, int line, int col) {
+	astNode *node = astNewNode(AST_LIT_BOOL, line, col);
 
 	node->data.boolValue = value;
 
 	return node;
 }
 
-astNode *ast_newUnitLit(int line, int col) {
-	return ast_newNode(AST_LIT_UNIT, line, col);
+astNode *astNewUnitLit(int line, int col) {
+	return astNewNode(AST_LIT_UNIT, line, col);
 }
 
-astNode *ast_newIdentifier(char *name, int line, int col) {
-	astNode *node = ast_newNode(AST_IDENTIFIER, line, col);
+astNode *astNewIdentifier(char *name, int line, int col) {
+	astNode *node = astNewNode(AST_IDENTIFIER, line, col);
 
 	node->data.identifier.name = name;
 
 	return node;
 }
 
-astNode *ast_newBinary(specTokenType op, astNode *left, astNode *right,
-					   int line, int col) {
-	astNode *node = ast_newNode(AST_BINARY_OP, line, col);
+astNode *astNewBinary(specTokenType op, astNode *left, astNode *right, int line,
+					  int col) {
+	astNode *node = astNewNode(AST_BINARY_OP, line, col);
 
 	node->data.binary.op = op;
 	node->data.binary.left = left;
@@ -338,8 +343,8 @@ astNode *ast_newBinary(specTokenType op, astNode *left, astNode *right,
 	return node;
 }
 
-astNode *ast_newUnary(specTokenType op, astNode *operand, int line, int col) {
-	astNode *node = ast_newNode(AST_UNARY_OP, line, col);
+astNode *astNewUnary(specTokenType op, astNode *operand, int line, int col) {
+	astNode *node = astNewNode(AST_UNARY_OP, line, col);
 
 	node->data.unary.op = op;
 	node->data.unary.operand = operand;
@@ -347,17 +352,17 @@ astNode *ast_newUnary(specTokenType op, astNode *operand, int line, int col) {
 	return node;
 }
 
-astNode *ast_newCall(astNode *callee, int line, int col) {
-	astNode *node = ast_newNode(AST_CALL, line, col);
+astNode *astNewCall(astNode *callee, int line, int col) {
+	astNode *node = astNewNode(AST_CALL, line, col);
 
 	node->data.call.callee = callee;
-	ast_listInit(&node->data.call.args);
+	astListInit(&node->data.call.args);
 
 	return node;
 }
 
-astNode *ast_newMember(astNode *object, char *name, int line, int col) {
-	astNode *node = ast_newNode(AST_MEMBER, line, col);
+astNode *astNewMember(astNode *object, char *name, int line, int col) {
+	astNode *node = astNewNode(AST_MEMBER, line, col);
 
 	node->data.member.object = object;
 	node->data.member.name = name;
@@ -365,15 +370,15 @@ astNode *ast_newMember(astNode *object, char *name, int line, int col) {
 	return node;
 }
 
-astNode *ast_newInterp(int line, int col) {
-	astNode *node = ast_newNode(AST_INTERP, line, col);
+astNode *astNewInterp(int line, int col) {
+	astNode *node = astNewNode(AST_INTERP, line, col);
 
-	ast_listInit(&node->data.interp.parts);
+	astListInit(&node->data.interp.parts);
 
 	return node;
 }
 
-astDataType ast_typeFromToken(specTokenType specType) {
+astDataType astTypeFromToken(specTokenType specType) {
 	switch (specType) {
 	case dt_int:
 		return TYPE_INT;

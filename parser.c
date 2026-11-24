@@ -2,6 +2,12 @@
  * @name ifj26
  * @authors Jakub Geleta (xgeletj00)
  * @file parser.c
+ *
+ * AI usage:
+ * "Create function stubs according to the language grammar"
+ * "Fill the precedence table from the .md file"
+ * "Update the precedence table so it is up to date with the .md file"
+ * "Add debug prints for parsing"
  */
 
 #include <stdio.h>
@@ -15,8 +21,6 @@ static parserState parser;
 
 // ------------------------------------
 /*
- *
- * !! AI GENERATED - Prompt: "Add debug prints for the parsing"
  * DEBUG PRINTS
  *
  *
@@ -109,6 +113,9 @@ const char precedenceTable[PREC_COUNT][PREC_COUNT] = {
 	 '<', '<', ' ', '<', '<', '<', '<', '<', '<', ' '},
 };
 
+/**
+ * @brief Checks any unattached nodes and frees them
+ */
 void parserCleanup(void) {
 	if (!parser.active)
 		return;
@@ -116,7 +123,7 @@ void parserCleanup(void) {
 
 	while (parser.unattachedCount > 0) {
 		parser.unattachedCount--;
-		ast_free(parser.unattached[parser.unattachedCount]);
+		astFree(parser.unattached[parser.unattachedCount]);
 	}
 	free(parser.unattached);
 	parser.unattached = NULL;
@@ -126,6 +133,12 @@ void parserCleanup(void) {
 		pop(&parser.exprStack);
 }
 
+/**
+ * @brief Helper function, tracks nodes that werent attached yet
+ * 		  so when code crashes, they dont stay lost
+ * @param node Pointer to a node that should be tracked
+ * @return Pointer to the tracked node
+ */
 astNode *parserTrackUnattached(astNode *node) {
 	if (node == NULL)
 		return NULL;
@@ -136,7 +149,7 @@ astNode *parserTrackUnattached(astNode *node) {
 		astNode **newUnattached =
 			realloc(parser.unattached, newCapacity * sizeof(astNode *));
 		if (newUnattached == NULL) {
-			ast_free(node);
+			astFree(node);
 			error(INTERNAL_ERROR,
 				  "Parser unattached node stack realloc memory failed");
 		}
@@ -148,6 +161,11 @@ astNode *parserTrackUnattached(astNode *node) {
 	return node;
 }
 
+/**
+ * @brief Helper function, unattaches the node, when it is in the AST
+ * @param node Pointer to a node that should be unattached
+ * @return Pointer to the unattached node
+ */
 astNode *parserMarkAttached(astNode *node) {
 	if (node == NULL)
 		return NULL;
@@ -163,8 +181,13 @@ astNode *parserMarkAttached(astNode *node) {
 	return node;
 }
 
+/**
+ * @brief Helper function, appends the node and makes it attached
+ * @param list Node list to append to
+ * @param node Node to append
+ */
 void parserListAppend(astNodeList *list, astNode *node) {
-	ast_listAppend(list, node);
+	astListAppend(list, node);
 	parserMarkAttached(node);
 }
 
@@ -185,7 +208,7 @@ astNode *parse(void) {
 
 	if (program == NULL) {
 		error(SYNTAX_ERROR, "Invalid program structure");
-	} 
+	}
 
 	parserMarkAttached(program);
 	parserCleanup();
@@ -209,6 +232,9 @@ bool parserMatch(specTokenType specType) {
 	return true;
 }
 
+/**
+ * @brief Helper function, skips new lines in code
+ */
 void skipNL(void) {
 	while (parserCheck(ps_newLine)) {
 		parserAdvance();
@@ -230,7 +256,7 @@ astNode *parseProgram(void) {
 		strcmp(parser.current.value.word, "ifj26") != 0)
 		error(SYNTAX_ERROR, "Expected 'ifj26' after 'import'");
 
-	astNode *program = parserTrackUnattached(ast_newProgram(NULL, line, col));
+	astNode *program = parserTrackUnattached(astNewProgram(NULL, line, col));
 	program->data.program.importName = parser.current.value.word;
 	parserAdvance();
 
@@ -260,11 +286,11 @@ void parseGlobalDefs(astNodeList *defs) {
 			error(SYNTAX_ERROR, "Invalid global definition");
 
 		parserListAppend(defs, def);
-		parserMarkAttached(def);
 
 		if (def->type == AST_FUN_DEF && def->data.funcDef.isMain) {
 			if (mainFound) {
-				error(SEMANTIC_REDEFINITION_ERROR, "Multiple main functions found");
+				error(SEMANTIC_REDEFINITION_ERROR,
+					  "Multiple main functions found");
 			}
 			mainFound = true;
 		}
@@ -300,7 +326,7 @@ astNode *parseExtension(void) {
 		error(SYNTAX_ERROR, "Expected a identifier in extension");
 
 	astNode *extension =
-		parserTrackUnattached(ast_newExtension(NULL, line, col));
+		parserTrackUnattached(astNewExtension(NULL, line, col));
 	extension->data.extension.receiver = parserMarkAttached(parseParam());
 
 	if (!parserMatch(br_end))
@@ -346,8 +372,8 @@ astNode *parseFuncDef(bool isMain) {
 		error(SYNTAX_ERROR, "Expected function name after 'def'");
 
 	astNode *funcDef = parserTrackUnattached(
-		ast_newFuncDef(parser.current.value.word, isMain, parser.current.line,
-					   parser.current.col));
+		astNewFuncDef(parser.current.value.word, isMain, parser.current.line,
+					  parser.current.col));
 	parserAdvance();
 
 	parseParamLists(&funcDef->data.funcDef.paramLists);
@@ -380,7 +406,7 @@ void parseParamLists(astNodeList *paramLists) {
 	PARSER_TRACE();
 	while (parserCheck(br_start)) {
 		astNode *paramList = parserTrackUnattached(
-			ast_newParamList(parser.current.line, parser.current.col));
+			astNewParamList(parser.current.line, parser.current.col));
 		parserListAppend(paramLists, paramList);
 		parserAdvance();
 
@@ -399,8 +425,7 @@ void parseParams(astNodeList *params) {
 	parserListAppend(params, parseParam());
 
 	while (parserCheck(sn_comma)) {
-		// the scanner swallows newlines inside parentheses, so the only way
-		// to tell whether one followed the comma is to compare line numbers
+		// the scanner swallows newlines inside parentheses
 		int commaLine = parser.current.line;
 		parserAdvance();
 
@@ -421,7 +446,7 @@ astNode *parseParam(void) {
 		return NULL;
 
 	astNode *param = parserTrackUnattached(
-		ast_newParam(NULL, TYPE_NONE, parser.current.line, parser.current.col));
+		astNewParam(NULL, TYPE_NONE, parser.current.line, parser.current.col));
 	param->data.param.name = parser.current.value.word;
 	parserAdvance();
 
@@ -448,7 +473,7 @@ astDataType parseTypeOpt(void) {
 
 astDataType parseType(void) {
 	PARSER_TRACE();
-	astDataType type = ast_typeFromToken(parser.current.specType);
+	astDataType type = astTypeFromToken(parser.current.specType);
 	if (type != TYPE_NONE)
 		parserAdvance();
 	return type;
@@ -474,7 +499,7 @@ astNode *parseBlock(void) {
 	PARSER_TRACE();
 
 	astNode *block = parserTrackUnattached(
-		ast_newBlock(parser.current.line, parser.current.col));
+		astNewBlock(parser.current.line, parser.current.col));
 
 	skipNL();
 	while (!parserCheck(ps_dedent) && !parserCheck(ps_eof)) {
@@ -521,7 +546,7 @@ astNode *parseSimple(void) {
 
 	if (parserCheck(op_assign)) {
 		astNode *assign = parserTrackUnattached(
-			ast_newAssign(expr, NULL, parser.current.line, parser.current.col));
+			astNewAssign(expr, NULL, parser.current.line, parser.current.col));
 		parserMarkAttached(expr);
 		parserAdvance();
 
@@ -533,7 +558,7 @@ astNode *parseSimple(void) {
 	}
 
 	astNode *exprStmt =
-		parserTrackUnattached(ast_newExprStmt(expr, expr->line, expr->col));
+		parserTrackUnattached(astNewExprStmt(expr, expr->line, expr->col));
 	parserMarkAttached(expr);
 
 	if (!parserCheck(ps_newLine) && !parserCheck(sn_semiColon))
@@ -547,7 +572,7 @@ astNode *parseInline(void) {
 
 	if (parserCheck(kw_return)) {
 		astNode *ret = parserTrackUnattached(
-			ast_newReturn(NULL, parser.current.line, parser.current.col));
+			astNewReturn(NULL, parser.current.line, parser.current.col));
 		parserAdvance();
 
 		ret->data.ret.value = parserMarkAttached(parseExpr());
@@ -560,7 +585,7 @@ astNode *parseInline(void) {
 
 	if (parserCheck(op_assign)) {
 		astNode *assign = parserTrackUnattached(
-			ast_newAssign(expr, NULL, parser.current.line, parser.current.col));
+			astNewAssign(expr, NULL, parser.current.line, parser.current.col));
 		parserMarkAttached(expr);
 		parserAdvance();
 
@@ -572,7 +597,7 @@ astNode *parseInline(void) {
 	}
 
 	astNode *exprStmt =
-		parserTrackUnattached(ast_newExprStmt(expr, expr->line, expr->col));
+		parserTrackUnattached(astNewExprStmt(expr, expr->line, expr->col));
 	parserMarkAttached(expr);
 	return exprStmt;
 }
@@ -584,8 +609,8 @@ astNode *parseVarDecl(bool isMutable) {
 	if (!parserCheck(id_idtName))
 		error(SYNTAX_ERROR, "Expected variable name after 'var' or 'val'");
 	astNode *var = parserTrackUnattached(
-		ast_newVarDecl(parser.current.value.word, TYPE_NONE, NULL, isMutable,
-					   parser.current.line, parser.current.col));
+		astNewVarDecl(parser.current.value.word, TYPE_NONE, NULL, isMutable,
+					  parser.current.line, parser.current.col));
 	parserAdvance();
 
 	var->data.varDecl.declType = parseTypeOpt();
@@ -604,7 +629,7 @@ astNode *parseReturn(void) {
 	PARSER_TRACE();
 
 	astNode *ret = parserTrackUnattached(
-		ast_newReturn(NULL, parser.current.line, parser.current.col));
+		astNewReturn(NULL, parser.current.line, parser.current.col));
 	parserAdvance();
 
 	if (parserCheck(ps_newLine) || parserCheck(sn_semiColon)) {
@@ -620,7 +645,7 @@ astNode *parseReturn(void) {
 astNode *parseWhile(void) {
 	PARSER_TRACE();
 	astNode *whileNode = parserTrackUnattached(
-		ast_newWhile(NULL, NULL, parser.current.line, parser.current.col));
+		astNewWhile(NULL, NULL, parser.current.line, parser.current.col));
 	parserAdvance();
 
 	whileNode->data.whileLoop.cond = parserMarkAttached(parseExpr());
@@ -655,7 +680,7 @@ astNode *parseIfHead(void) {
 	PARSER_TRACE();
 
 	astNode *ifNode = parserTrackUnattached(
-		ast_newIf(NULL, NULL, NULL, parser.current.line, parser.current.col));
+		astNewIf(NULL, NULL, NULL, parser.current.line, parser.current.col));
 	parserAdvance();
 
 	ifNode->data.ifStmt.cond = parserMarkAttached(parseExpr());
@@ -712,7 +737,12 @@ astNode *parseIf(bool isValue) {
 	return ifNode;
 }
 
-// Used for For loop special words
+/**
+ * @brief Helper function, checks if a special word is being parsed, used in For
+ * loop
+ * @param word Word to check
+ * @return True if found, false otherwise
+ */
 bool parserCheckWord(const char *word) {
 	return parserCheck(id_idtName) &&
 		   strcmp(parser.current.value.word, word) == 0;
@@ -722,7 +752,7 @@ astNode *parseFor(void) {
 	PARSER_TRACE();
 
 	astNode *forNode = parserTrackUnattached(
-		ast_newFor(NULL, parser.current.line, parser.current.col));
+		astNewFor(NULL, parser.current.line, parser.current.col));
 	parserAdvance();
 
 	parseForHeader(forNode);
@@ -823,10 +853,24 @@ void parseGuardLines(astNodeList *guards) {
 	}
 }
 
+// Code used for the precedence
+
+/**
+ * @brief Helper function, checks if the symbol is a terminal with the given
+ * precedence
+ * @param symbol The expression symbol
+ * @param prec Precedence the terminal should have
+ * @return True if it is that terminal, false otherwise
+ */
 bool exprIsTerm(const exprSymbol *symbol, int prec) {
 	return symbol->kind == EXPR_TERM && symbol->prec == prec;
 }
 
+/**
+ * @brief Helper function, returns the precedence of the topmost terminal
+ * 		  on the expression stack (skips a nonterminal on top)
+ * @return Precedence of the top terminal
+ */
 int exprTopTerminalPrec(void) {
 	if (top(&parser.exprStack)->kind == EXPR_TERM)
 		return top(&parser.exprStack)->prec;
@@ -837,12 +881,24 @@ int exprTopTerminalPrec(void) {
 	return prec;
 }
 
+/**
+ * @brief Helper function, checks if the top of the stack is an operand
+ * 		  (nonterminal, identifier / literal or ')')
+ * @return True if the next token comes after an operand, false otherwise
+ */
 bool exprAfterOperand(void) {
 	const exprSymbol *topSymbol = top(&parser.exprStack);
 	return topSymbol->kind == EXPR_NONTERM || exprIsTerm(topSymbol, PREC_ID) ||
 		   exprIsTerm(topSymbol, PREC_RBR);
 }
 
+/**
+ * @brief Helper function, classifies the current token (returns a precedence)
+ * @param afterOperand If the token comes after an operand,
+ * 		  used to tell apart unary and binary operators
+ * @param parenDepth How many brackets are open, used for brackets and commas
+ * @return Returns a precedence, PREC_END if the token ends the expression
+ */
 int exprClassify(bool afterOperand, int parenDepth) {
 	switch (parser.current.specType) {
 	case op_add:
@@ -901,27 +957,40 @@ int exprClassify(bool afterOperand, int parenDepth) {
 	}
 }
 
+/**
+ * @brief Helper function, makes AST node for the current token if it is an
+ * operand (identifier or literal)
+ * @return Pointer to the created node, NULL if the token is not an operand
+ */
 astNode *exprMakeOperand(void) {
 	token tok = parser.current;
 
 	switch (tok.specType) {
 	case id_idtName:
-		return ast_newIdentifier(tok.value.word, tok.line, tok.col);
+		return astNewIdentifier(tok.value.word, tok.line, tok.col);
 	case lit_int:
-		return ast_newIntLit(tok.value.num, tok.line, tok.col);
+		return astNewIntLit(tok.value.num, tok.line, tok.col);
 	case lit_double:
-		return ast_newDoubleLit(tok.value.decNum, tok.line, tok.col);
+		return astNewDoubleLit(tok.value.decNum, tok.line, tok.col);
 	case lit_string:
-		return ast_newStringLit(tok.value.word, tok.line, tok.col);
+		return astNewStringLit(tok.value.word, tok.line, tok.col);
 	case lit_true:
-		return ast_newBoolLit(true, tok.line, tok.col);
+		return astNewBoolLit(true, tok.line, tok.col);
 	case lit_false:
-		return ast_newBoolLit(false, tok.line, tok.col);
+		return astNewBoolLit(false, tok.line, tok.col);
 	default:
 		return NULL;
 	}
 }
 
+/**
+ * @brief Helper function, pushes the current token on the expression stack
+ * @param prec Precedence of the current token
+ * @param withHandle If a handle should be pushed before the token ('<' in the
+ * table)
+ *
+ * Operands, interpolated strings and if expressions get their AST node here
+ */
 void exprShift(int prec, bool withHandle) {
 	if (withHandle) {
 		exprSymbol handle;
@@ -962,6 +1031,11 @@ void exprShift(int prec, bool withHandle) {
 	parserAdvance();
 }
 
+/**
+ * @brief Helper function, checks if the precedence is a binary operator
+ * @param prec Precedence of the operator
+ * @return True if binary operation, false otherwise
+ */
 bool exprIsBinaryOp(int prec) {
 	switch (prec) {
 	case PREC_ADD:
@@ -982,11 +1056,25 @@ bool exprIsBinaryOp(int prec) {
 	}
 }
 
+/**
+ * @brief Helper function, checks that the symbol is not an argument list
+ * @param symbol The expression symbol
+ *
+ * Argument lists "a, b" can only be inside of a function call
+ */
 void exprCheckNotArgList(const exprSymbol *symbol) {
 	if (symbol->kind == EXPR_NONTERM && symbol->isArgList)
 		error(SYNTAX_ERROR, "Unexpected ',' in expression");
 }
 
+/**
+ * @brief Helper function, makes a function call node
+ * @param callee Node of the called function
+ * @param args Symbol with the arguments, NULL if there are none
+ * @param line Line of the call
+ * @param col Column of the call
+ * @return Pointer to the call node
+ */
 astNode *exprMakeCall(astNode *callee, const exprSymbol *args, int line,
 					  int col) {
 	astNode *call;
@@ -995,7 +1083,7 @@ astNode *exprMakeCall(astNode *callee, const exprSymbol *args, int line,
 		call = args->node;
 		call->data.call.callee = callee;
 	} else {
-		call = parserTrackUnattached(ast_newCall(callee, line, col));
+		call = parserTrackUnattached(astNewCall(callee, line, col));
 		if (args != NULL)
 			parserListAppend(&call->data.call.args, args->node);
 	}
@@ -1004,21 +1092,36 @@ astNode *exprMakeCall(astNode *callee, const exprSymbol *args, int line,
 	return call;
 }
 
+/**
+ * @brief Helper function, makes a member access node -> object.name
+ * @param object Node before the '.'
+ * @param nameNode Identifier node after the '.', gets freed
+ * @param line Line of the '.'
+ * @param col Column of the '.'
+ * @return Pointer to the member access node
+ */
 astNode *exprMakeMember(astNode *object, astNode *nameNode, int line, int col) {
 	if (nameNode->type != AST_IDENTIFIER)
 		error(SYNTAX_ERROR, "Expected identifier after '.'");
 
 	astNode *member = parserTrackUnattached(
-		ast_newMember(object, nameNode->data.identifier.name, line, col));
+		astNewMember(object, nameNode->data.identifier.name, line, col));
 	parserMarkAttached(object);
 
 	nameNode->data.identifier.name = NULL;
 	parserMarkAttached(nameNode);
-	ast_free(nameNode);
+	astFree(nameNode);
 
 	return member;
 }
 
+/**
+ * @brief Helper function, reduces the symbols up to the handle on the
+ * 		  expression stack into one nonterminal ('>' in the table)
+ *
+ * Handles operands, brackets, unary and binary operators,
+ * argument lists, function calls and member access
+ */
 void exprReduce(void) {
 	exprSymbol fromTop[6];
 	size_t count = 0;
@@ -1043,8 +1146,8 @@ void exprReduce(void) {
 	} else if (count == 2 && exprIsTerm(h[0], PREC_LBR) &&
 			   exprIsTerm(h[1], PREC_RBR)) {
 		// Unit -> ()
-		result = parserTrackUnattached(
-			ast_newUnitLit(h[0]->tok.line, h[0]->tok.col));
+		result =
+			parserTrackUnattached(astNewUnitLit(h[0]->tok.line, h[0]->tok.col));
 	} else if (count == 3 && exprIsTerm(h[0], PREC_LBR) &&
 			   h[1]->kind == EXPR_NONTERM && exprIsTerm(h[2], PREC_RBR)) {
 		// expression in paranthesis -> (expr)
@@ -1056,7 +1159,7 @@ void exprReduce(void) {
 				h[0]->prec == PREC_NOT)) {
 		// unary operator
 		exprCheckNotArgList(h[1]);
-		result = parserTrackUnattached(ast_newUnary(
+		result = parserTrackUnattached(astNewUnary(
 			h[0]->tok.specType, h[1]->node, h[0]->tok.line, h[0]->tok.col));
 		parserMarkAttached(h[1]->node);
 	} else if (count == 3 && h[0]->kind == EXPR_NONTERM &&
@@ -1067,7 +1170,7 @@ void exprReduce(void) {
 			result = h[0]->node;
 		} else {
 			result = parserTrackUnattached(
-				ast_newCall(NULL, h[0]->tok.line, h[0]->tok.col));
+				astNewCall(NULL, h[0]->tok.line, h[0]->tok.col));
 			parserListAppend(&result->data.call.args, h[0]->node);
 		}
 		parserListAppend(&result->data.call.args, h[2]->node);
@@ -1082,7 +1185,7 @@ void exprReduce(void) {
 			result = h[0]->node;
 		} else {
 			result = parserTrackUnattached(
-				ast_newCall(NULL, h[0]->tok.line, h[0]->tok.col));
+				astNewCall(NULL, h[0]->tok.line, h[0]->tok.col));
 			parserListAppend(&result->data.call.args, h[0]->node);
 		}
 		isArgList = true;
@@ -1093,8 +1196,8 @@ void exprReduce(void) {
 		exprCheckNotArgList(h[0]);
 		exprCheckNotArgList(h[2]);
 		result = parserTrackUnattached(
-			ast_newBinary(h[1]->tok.specType, h[0]->node, h[2]->node,
-						  h[1]->tok.line, h[1]->tok.col));
+			astNewBinary(h[1]->tok.specType, h[0]->node, h[2]->node,
+						 h[1]->tok.line, h[1]->tok.col));
 		parserMarkAttached(h[0]->node);
 		parserMarkAttached(h[2]->node);
 	} else if ((count == 3 || (count == 4 && h[2]->kind == EXPR_NONTERM)) &&
@@ -1114,7 +1217,7 @@ void exprReduce(void) {
 		exprCheckNotArgList(h[0]);
 		exprCheckNotArgList(h[2]);
 		astNode *right = h[2]->node;
-		
+
 		// member access after argLists
 		astNode *innerCall = right;
 		while (innerCall->type == AST_CALL &&
@@ -1232,7 +1335,7 @@ astNode *parseInterp(void) {
 	PARSER_TRACE();
 
 	astNode *interpStr = parserTrackUnattached(
-		ast_newInterp(parser.current.line, parser.current.col));
+		astNewInterp(parser.current.line, parser.current.col));
 	parserAdvance();
 
 	while (!parserCheck(intp_end)) {
@@ -1240,13 +1343,13 @@ astNode *parseInterp(void) {
 
 		if (parserCheck(intp_part)) {
 			intpPart = parserTrackUnattached(
-				ast_newStringLit(parser.current.value.word, parser.current.line,
-								 parser.current.col));
+				astNewStringLit(parser.current.value.word, parser.current.line,
+								parser.current.col));
 			parserAdvance();
 		} else if (parserCheck(id_idtName)) {
 			intpPart = parserTrackUnattached(
-				ast_newIdentifier(parser.current.value.word,
-								  parser.current.line, parser.current.col));
+				astNewIdentifier(parser.current.value.word, parser.current.line,
+								 parser.current.col));
 			parserAdvance();
 		} else if (parserCheck(intp_exprBegin)) {
 			parserAdvance();
