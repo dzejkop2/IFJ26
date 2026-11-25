@@ -10,6 +10,7 @@
 
 #include "codegen.h"
 #include "builtin.h"
+#include "error.h"
 
 static void generateFunction(astNode *node, astNode *receiver);
 static void generateExtension(astNode *node);
@@ -533,8 +534,7 @@ static void generateNode(astNode *node) {
     }
 
     if (callee == NULL) {
-        fprintf(stderr, "Missing call target\n");
-        exit(99);
+        error(INTERNAL_ERROR, "Missing call target");
     }
 
     if (callee->type == AST_MEMBER) {
@@ -577,8 +577,7 @@ static void generateNode(astNode *node) {
         printf("CALL %s%s\n", prefix, name);
     }
     else {
-        fprintf(stderr, "Unsupported callee type\n");
-        exit(99);
+        error(INTERNAL_ERROR, "Unsupported callee type");
     }
 
     break;
@@ -678,8 +677,7 @@ void generateCode(astNode *root) {
         }
     }
     if (mainName == NULL) {
-        fprintf(stderr, "Main function not found\n");
-        exit(99);
+        error(INTERNAL_ERROR, "Main function not found");
     }
 
     printf("LABEL $$entry\n");
