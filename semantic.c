@@ -10,18 +10,8 @@
 
 static int scopeIdCounter = 0;
 static astNode *mainNode = NULL;
+static astNode *rootNode = NULL;
 
-static void semanticError(int code, const char *message, const astNode *node) {
-	char diagnostic[512];
-	if (node != NULL) {
-		snprintf(diagnostic, sizeof(diagnostic), "%s (line %d, column %d)",
-				 message, node->line, node->col);
-	} else {
-		snprintf(diagnostic, sizeof(diagnostic),
-				 "%s (source location unavailable)", message);
-	}
-	error(code, diagnostic);
-}
 
 static void analyzeNodeList(astNodeList nodeList, Scope *scope);
 static void analyzeNode(astNode *node, Scope *scope);
@@ -41,7 +31,7 @@ static void analyzeWhile(astNode *node, Scope *scope);
 static void registerExtension(astNode *node, Scope *scope);
 static void analyzeExtension(astNode *node, Scope *scope);
 static char *makeExtensionPrefix(astDataType type, const char *name,
-								 const astNode *node);
+								 const astNode *node, Scope *scope);
 static void analyzeMember(astNode *node, Scope *scope);
 static AVLNode *lookupExtension(astNode *node, Scope *scope);
 static void analyzeReturn(astNode *node, Scope *scope);
@@ -57,6 +47,37 @@ static void registerBuiltinExtension(
     astDataType returnType
 ); 
 static bool lastStatementReturns(const astNode* body);
+static void destroyFullAVL(Scope* scope);
+static void analyzeFunctionLazy(astNode *definition, Scope *scope,
+								astNode *receiver);
+
+
+typedef struct SuspendedScope {
+	Scope *scope;
+	struct SuspendedScope *prev;
+} SuspendedScope;
+
+static SuspendedScope *suspendedScopes = NULL;
+
+
+static void semanticError(int code, const char *message, const astNode *node,Scope* scope) {
+	char diagnostic[512];
+	if (node != NULL) {
+		snprintf(diagnostic, sizeof(diagnostic), "%s (line %d, column %d)",
+				 message, node->line, node->col);
+	} else {
+		snprintf(diagnostic, sizeof(diagnostic),
+				 "%s (source location unavailable)", message);
+	}
+	// free only after the message is built, node is part of the AST
+	astFree(rootNode);
+	rootNode = NULL;
+	destroyFullAVL(scope);
+	error(code, diagnostic);
+}
+
+
+
 
 static void registerBuiltin(Scope *scope, char *name, astDataType returnType,
 							size_t paramCount, argInfo *params) {
@@ -87,9 +108,8 @@ static void registerBuiltinExtension(
     Scope *scope,
     astDataType receiverType,
     const char *name,
-    astDataType returnType
-) {
-    char *key = makeExtensionPrefix(receiverType, name, NULL);
+    astDataType returnType) {
+    char *key = makeExtensionPrefix(receiverType, name, NULL,scope);
 
     if (key == NULL) {
         error(INTERNAL_ERROR, "Cannot register builtin extension");
@@ -214,8 +234,9 @@ static void analyzeNodeList(astNodeList nodeList, Scope *scope) {
 
 void semanticAnalyze(astNode *root) {
 	if (root == NULL || root->type != AST_PROGRAM) {
-		semanticError(INTERNAL_ERROR, "Root node is not a program", root);
+		semanticError(INTERNAL_ERROR, "Root node is not a program", root,NULL);
 	}
+	rootNode = root;
 
 	Scope globalScope = {.symbols = initTree(),
 						 .parent = NULL,
@@ -224,10 +245,9 @@ void semanticAnalyze(astNode *root) {
 	registerBuiltins(&globalScope);
 	analyzeNode(root, &globalScope);
 
-	// a function named "main" without @main is not the entry point
 	if (mainNode == NULL) {
 		semanticError(SEMANTIC_UNDEFINITION_ERROR,
-					  "Missing @main function", root);
+					  "Missing @main function", root,&globalScope);
 	}
 
 	destroyAVL(globalScope.symbols);
@@ -328,7 +348,7 @@ static void analyzeNode(astNode *node, Scope *scope) {
 		analyzeInterp(node, scope);
 		break;
 	default:
-		semanticError(INTERNAL_ERROR, "Unknown AST node type", node);
+		semanticError(INTERNAL_ERROR, "Unknown AST node type", node,scope);
 		break;
 	}
 }
@@ -351,9 +371,12 @@ static AVLNode *searchSymbolInScope(Scope *scope, char *name) {
 
 static void analyzeAssign(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_ASSIGN) {
-		semanticError(INTERNAL_ERROR, "Invalid assignment node", node);
+		semanticError(INTERNAL_ERROR, "Invalid assignment node", node,scope);
 		return;
 	}
+
+	if (node->data.assign.target->type != AST_IDENTIFIER)
+		semanticError(SYNTAX_ERROR, "Invalid assignment target", node, scope);
 
 	analyzeNode(node->data.assign.target, scope);
 	analyzeNode(node->data.assign.value, scope);
@@ -362,25 +385,25 @@ static void analyzeAssign(astNode *node, Scope *scope) {
 			node->data.assign.value->dataType &&
 		!(node->data.assign.target->dataType == TYPE_DOUBLE &&
 		  node->data.assign.value->dataType == TYPE_INT)) {
-		semanticError(SEMANTIC_TYPE_ERROR, "Assignment type mismatch", node);
+		semanticError(SEMANTIC_TYPE_ERROR, "Assignment type mismatch", node,scope);
 	}
 
 	AVLNode *symbol = searchSymbolInScope(
 		scope, node->data.assign.target->data.identifier.name);
 	if (symbol == NULL) {
 		semanticError(SEMANTIC_UNDEFINITION_ERROR,
-					  "Assignment to undefined variable", node);
+					  "Assignment to undefined variable", node,scope);
 		return;
 	}
 	if (symbol->params.is_mutable == false) {
 		semanticError(SEMANTIC_UNSUPPORTED_MODIFICATON_ERROR,
-					  "Assignment to immutable variable", node);
+					  "Assignment to immutable variable", node,scope);
 	}
 }
 
 static void analyzeBlock(astNode *node, Scope *parentScope) {
 	if (node == NULL || node->type != AST_BLOCK) {
-		semanticError(INTERNAL_ERROR, "Invalid block node", node);
+		semanticError(INTERNAL_ERROR, "Invalid block node", node,parentScope);
 		return;
 	}
 
@@ -404,7 +427,7 @@ static void analyzeBlock(astNode *node, Scope *parentScope) {
 
 static void analyzeVarDecl(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_VAR_DECL) {
-		semanticError(INTERNAL_ERROR, "Invalid variable declaration", node);
+		semanticError(INTERNAL_ERROR, "Invalid variable declaration", node,scope);
 		return;
 	}
 
@@ -413,13 +436,13 @@ static void analyzeVarDecl(astNode *node, Scope *scope) {
 
 	if (valueNode == NULL) {
 		semanticError(SEMANTIC_TYPE_ERROR, "Variable declaration without value",
-					  node);
+					  node,scope);
 		return;
 	}
 	analyzeNode(valueNode, scope);
 	if (valueNode->dataType == TYPE_NONE) {
 		semanticError(SEMANTIC_TYPE_ERROR,
-					  "Variable declaration with TYPE_NONE value", node);
+					  "Variable declaration with TYPE_NONE value", node,scope);
 		return;
 	}
 
@@ -427,7 +450,7 @@ static void analyzeVarDecl(astNode *node, Scope *scope) {
 		!(declType == TYPE_DOUBLE && valueNode->dataType == TYPE_INT)) {
 
 		semanticError(SEMANTIC_TYPE_ERROR, "Variable declaration type mismatch",
-					  node);
+					  node,scope);
 		return;
 	}
 	if (declType == TYPE_NONE) {
@@ -439,7 +462,7 @@ static void analyzeVarDecl(astNode *node, Scope *scope) {
 
 	if (existingSymbol != NULL) {
 		semanticError(SEMANTIC_REDEFINITION_ERROR, "Variable redeclaration",
-					  node);
+					  node,scope);
 		return;
 	}
 	paramInfo info = {.name = node->data.varDecl.name,
@@ -460,14 +483,14 @@ static void analyzeVarDecl(astNode *node, Scope *scope) {
 
 static void analyzeIdentifier(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_IDENTIFIER) {
-		semanticError(INTERNAL_ERROR, "Invalid identifier node", node);
+		semanticError(INTERNAL_ERROR, "Invalid identifier node", node,scope);
 		return;
 	}
 
 	AVLNode *symbol = searchSymbolInScope(scope, node->data.identifier.name);
 	if (symbol == NULL) {
 		semanticError(SEMANTIC_UNDEFINITION_ERROR,
-					  "Identifier used before declaration", node);
+					  "Identifier used before declaration", node,scope);
 		return;
 	}
 
@@ -477,7 +500,7 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
 			definition->data.funcDef.paramLists.count > 0) {
 			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
 						  "Function must be called with its parameter lists",
-						  node);
+						  node,scope);
 			return;
 		}
 
@@ -486,16 +509,11 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
 			semanticError(SEMANTIC_TYPE_ERROR,
 						  "Cannot infer return type of recursive functions; "
 						  "declare a return type",
-						  node);
+						  node,scope);
 			return;
 		}
 		if (symbol->params.resolveState == TYPE_UNVISITED) {
-			Scope *definitionScope = scope;
-			while (definitionScope->parent != NULL) {
-				definitionScope = definitionScope->parent;
-			}
-			analyzeFunction(definition, definitionScope,
-							symbol->params.receiver);
+			analyzeFunctionLazy(definition, scope, symbol->params.receiver);
 		}
 	}
 
@@ -509,14 +527,14 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
 static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 	char *extensionKey =
 		receiver != NULL ? makeExtensionPrefix(receiver->data.param.type,
-											   node->data.funcDef.name, node)
+											   node->data.funcDef.name, node,scope)
 						 : NULL;
 	AVLNode *searchedFunction = searchSymbolInScope(
 		scope, extensionKey != NULL ? extensionKey : node->data.funcDef.name);
 	free(extensionKey);
 	if (searchedFunction == NULL) {
 		semanticError(INTERNAL_ERROR, "Function definition is not registered",
-					  node);
+					  node,scope);
 		return;
 	}
 	if (searchedFunction->params.resolveState == TYPE_RESOLVED) {
@@ -527,7 +545,7 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 		semanticError(SEMANTIC_TYPE_ERROR,
 					  "Cannot infer return type of recursive functions; "
 					  "declare a return type",
-					  node);
+					  node,scope);
 		return;
 	}
 	searchedFunction->params.resolveState = TYPE_RESOLVING;
@@ -543,7 +561,7 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 		if (receiver->type != AST_PARAM ||
 			receiver->data.param.type == TYPE_NONE) {
 			semanticError(SEMANTIC_TYPE_ERROR, "Invalid extension receiver",
-						  receiver != NULL ? receiver : node);
+						  receiver != NULL ? receiver : node,&functionScope);
 		}
 
 		paramInfo info = {.name = receiver->data.param.name,
@@ -575,8 +593,9 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 							  .depth = functionScope.depth};
 
 			if (searchNode(functionScope.symbols, info.name) != NULL) {
+
 				semanticError(SEMANTIC_REDEFINITION_ERROR,
-							  "Duplicate function parameter", param);
+							  "Duplicate function parameter", param,&functionScope);
 			}
 
 			functionScope.symbols = insertNode(functionScope.symbols, info);
@@ -591,26 +610,27 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 	if(node->data.funcDef.isMain){
 
 		if(declaredType != TYPE_UNIT) {
+
 			semanticError(SEMANTIC_TYPE_ERROR,
-				"Main is not type UNIT",node);
+				"Main is not type UNIT",node,&functionScope);
 		}
 		if (mainNode != NULL){
 			semanticError(SEMANTIC_REDEFINITION_ERROR,
-				"Multiple main declarations",node);
+				"Multiple main declarations",node,&functionScope);
 		}
 		mainNode = node;
 
 		if (node->data.funcDef.paramLists.count != 1 ||
 			node->data.funcDef.paramLists.items[0]->data.paramList.params.count != 0) {
 			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-				"Main must not have parameters",node);
+				"Main must not have parameters",node,&functionScope);
 		}
 	} 
 
 
 	if (actualType == TYPE_NONE) {
 		semanticError(SEMANTIC_TYPE_ERROR,
-					  "Cannot determine function return type", node);
+					  "Cannot determine function return type", node,&functionScope);
 		return;
 	}
 
@@ -622,11 +642,10 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 			!finalStatementReturns &&
 			declaredType != actualType &&
 			!(declaredType == TYPE_DOUBLE && actualType == TYPE_INT)) {
-
 			semanticError(
 				SEMANTIC_TYPE_ERROR,
 				"Function body type mismatch",
-				node
+				node,&functionScope
 			);
 			return;
 	}
@@ -652,12 +671,13 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
 			functionScope.symbols = left;
 		} else {
 			functionScope.symbols = symbol->right;
-			for (size_t i = 0; i < symbol->params.param_count; i++) {
-				free(symbol->params.param_list[i].name);
-			}
-			free(symbol->params.param_list);
-			free(symbol->params.name);
-			free(symbol);
+				for (size_t i = 0; i < symbol->params.param_count; i++) {
+					free(symbol->params.param_list[i].name);
+				}
+				free(symbol->params.param_list);
+				free(symbol->params.name);
+				free(symbol);
+
 		}
 	}
 	searchedFunction->params.resolveState = TYPE_RESOLVED;
@@ -675,7 +695,7 @@ static void markIntToDouble(astNode *arg, astDataType paramType) {
 
 static void analyzeCall(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_CALL) {
-        semanticError(INTERNAL_ERROR, "Invalid function call node", node);
+        semanticError(INTERNAL_ERROR, "Invalid function call node", node,scope);
         return;
     }
 
@@ -695,13 +715,13 @@ static void analyzeCall(astNode *node, Scope *scope) {
     }
 
     if (callee == NULL) {
-        semanticError(INTERNAL_ERROR, "Missing call target", node);
+        semanticError(INTERNAL_ERROR, "Missing call target", node,scope);
         return;
     }
 
     if (callee->type != AST_IDENTIFIER &&
         callee->type != AST_MEMBER) {
-        semanticError(INTERNAL_ERROR, "Unsupported callee type", callee);
+        semanticError(INTERNAL_ERROR, "Unsupported callee type", callee,scope);
         return;
     }
 
@@ -717,13 +737,13 @@ static void analyzeCall(astNode *node, Scope *scope) {
 
 	if (callFunc == NULL) {
 		semanticError(SEMANTIC_UNDEFINITION_ERROR,
-					  "Function used before declaration", callee);
+					  "Function used before declaration", callee,scope);
 		return;
 	}
 
 	if (callFunc->params.node_type != FUNCTION) {
 		semanticError(SEMANTIC_TYPE_ERROR, "Identifier is not a function",
-					  callee);
+					  callee,scope);
 		return;
 	}
 
@@ -732,31 +752,26 @@ static void analyzeCall(astNode *node, Scope *scope) {
 		semanticError(SEMANTIC_TYPE_ERROR,
 					  "Cannot infer return type of recursive functions; "
 					  "declare a return type",
-					  node);
+					  node,scope);
 		return;
 	}
 	if (callFunc->params.definition != NULL &&
 		callFunc->params.resolveState == TYPE_UNVISITED) {
-
-		Scope *definitionScope = scope;
-		while (definitionScope->parent != NULL) {
-			definitionScope = definitionScope->parent;
-		}
-		analyzeFunction(callFunc->params.definition, definitionScope,
-						callFunc->params.receiver);
+		analyzeFunctionLazy(callFunc->params.definition, scope,
+							callFunc->params.receiver);
 	}
 
 	astNode *definition = callFunc->params.definition;
 
 	if (callee->type == AST_MEMBER && definition == NULL) {
 		semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-					  "Member cannot be called with parentheses", node);
+					  "Member cannot be called with parentheses", node,scope);
 		return;
 	}
 
 	astNode **calls = malloc(totalLists * sizeof(astNode *));
 	if (calls == NULL) {
-		semanticError(INTERNAL_ERROR, "Memory allocation failed", node);
+		semanticError(INTERNAL_ERROR, "Memory allocation failed", node,scope);
 		return;
 	}
 	astNode *call = node;
@@ -771,7 +786,7 @@ static void analyzeCall(astNode *node, Scope *scope) {
 		if (totalLists != paramLists.count) {
 			free(calls);
 			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-						  "Function call parameter list count mismatch", node);
+						  "Function call parameter list count mismatch", node,scope);
 			return;
 		}
 
@@ -783,7 +798,7 @@ static void analyzeCall(astNode *node, Scope *scope) {
 			if (args.count != params.count) {
 				free(calls);
 				semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-							  "Function call argument count mismatch", node);
+							  "Function call argument count mismatch", node,scope);
 				return;
 			}
 
@@ -793,7 +808,7 @@ static void analyzeCall(astNode *node, Scope *scope) {
 					free(calls);
 					semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
 								  "Function call argument type mismatch",
-								  args.items[j]);
+								  args.items[j],scope);
 					return;
 				}
 				markIntToDouble(args.items[j],
@@ -804,7 +819,7 @@ static void analyzeCall(astNode *node, Scope *scope) {
 		if (totalLists != 1 || totalArgs != callFunc->params.param_count) {
 			free(calls);
 			semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-						  "Function call argument count mismatch", node);
+						  "Function call argument count mismatch", node,scope);
 			return;
 		}
 
@@ -814,7 +829,7 @@ static void analyzeCall(astNode *node, Scope *scope) {
 								 callFunc->params.param_list[j].type)) {
 				free(calls);
 				semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-							  "Function call argument type mismatch", arg);
+							  "Function call argument type mismatch", arg,scope);
 				return;
 			}
 			markIntToDouble(arg, callFunc->params.param_list[j].type);
@@ -828,7 +843,7 @@ static void analyzeCall(astNode *node, Scope *scope) {
 
 static void analyzeBinaryOp(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_BINARY_OP) {
-		semanticError(INTERNAL_ERROR, "Invalid binary operation", node);
+		semanticError(INTERNAL_ERROR, "Invalid binary operation", node,scope);
 		return;
 	}
 
@@ -849,7 +864,7 @@ static void analyzeBinaryOp(astNode *node, Scope *scope) {
 			node->dataType = TYPE_DOUBLE;
 		} else {
 			semanticError(SEMANTIC_TYPE_ERROR, "Invalid types for addition",
-						  node);
+						  node,scope);
 		}
 		break;
 	case op_sub:
@@ -863,7 +878,7 @@ static void analyzeBinaryOp(astNode *node, Scope *scope) {
 			node->dataType = TYPE_DOUBLE;
 		} else {
 			semanticError(SEMANTIC_TYPE_ERROR,
-						  "Invalid types for arithmetic operation", node);
+						  "Invalid types for arithmetic operation", node,scope);
 		}
 		break;
 
@@ -875,7 +890,7 @@ static void analyzeBinaryOp(astNode *node, Scope *scope) {
 			node->dataType = TYPE_BOOL;
 		} else {
 			semanticError(SEMANTIC_TYPE_ERROR,
-						  "Invalid types for comparison operation", node);
+						  "Invalid types for comparison operation", node,scope);
 		}
 		break;
 	case op_biggerThen:
@@ -888,7 +903,7 @@ static void analyzeBinaryOp(astNode *node, Scope *scope) {
 			node->dataType = TYPE_BOOL;
 		} else {
 			semanticError(SEMANTIC_TYPE_ERROR,
-						  "Invalid types for comparison operation", node);
+						  "Invalid types for comparison operation", node,scope);
 		}
 		break;
 	case op_and:
@@ -897,7 +912,7 @@ static void analyzeBinaryOp(astNode *node, Scope *scope) {
 			node->dataType = TYPE_BOOL;
 		} else {
 			semanticError(SEMANTIC_TYPE_ERROR,
-						  "Invalid types for logical operation", node);
+						  "Invalid types for logical operation", node,scope);
 		}
 		break;
 	default:
@@ -908,7 +923,7 @@ static void analyzeBinaryOp(astNode *node, Scope *scope) {
 static void analyzeUnaryOp(astNode *node, Scope *scope) {
 
 	if (node == NULL || node->type != AST_UNARY_OP) {
-		semanticError(INTERNAL_ERROR, "Invalid unary operation", node);
+		semanticError(INTERNAL_ERROR, "Invalid unary operation", node,scope);
 		return;
 	}
 
@@ -922,7 +937,7 @@ static void analyzeUnaryOp(astNode *node, Scope *scope) {
 			node->dataType = TYPE_BOOL;
 		} else {
 			semanticError(SEMANTIC_TYPE_ERROR,
-						  "Invalid type for logical NOT operation", node);
+						  "Invalid type for logical NOT operation", node,scope);
 		}
 		break;
 	case op_sub:
@@ -930,13 +945,13 @@ static void analyzeUnaryOp(astNode *node, Scope *scope) {
 			node->dataType = operandType;
 		} else {
 			semanticError(SEMANTIC_TYPE_ERROR,
-						  "Invalid type for unary negation operation", node);
+						  "Invalid type for unary negation operation", node,scope);
 		}
 		break;
 	case op_add:
 		if (operandType != TYPE_INT && operandType != TYPE_DOUBLE) {
 			semanticError(SEMANTIC_TYPE_ERROR,
-						  "Invalid type for unary plus operation", node);
+						  "Invalid type for unary plus operation", node,scope);
 		} else {
 			node->dataType = operandType;
 		}
@@ -948,20 +963,21 @@ static void analyzeUnaryOp(astNode *node, Scope *scope) {
 
 static void registerFunction(astNode *node, Scope *scope, astNode *receiver) {
 	if (node == NULL || node->type != AST_FUN_DEF) {
-		semanticError(INTERNAL_ERROR, "Invalid function definition", node);
+		semanticError(INTERNAL_ERROR, "Invalid function definition", node,scope);
 	}
 	char *symbolName = node->data.funcDef.name;
 	char *extensionKey = NULL;
 
 	if (receiver != NULL) {
 		extensionKey = makeExtensionPrefix(receiver->data.param.type,
-										   node->data.funcDef.name, node);
+										   node->data.funcDef.name, node,scope);
 
 		symbolName = extensionKey;
 	}
 	if (searchNode(scope->symbols, symbolName) != NULL) {
+		free(extensionKey);
 		semanticError(SEMANTIC_REDEFINITION_ERROR, "Function already defined",
-					  node);
+					  node,scope);
 	}
 
 	size_t paramCount = 0;
@@ -971,7 +987,7 @@ static void registerFunction(astNode *node, Scope *scope, astNode *receiver) {
 
 		if (list == NULL || list->type != AST_PARAM_LIST) {
 			semanticError(INTERNAL_ERROR, "Invalid parameter list",
-						  list != NULL ? list : node);
+						  list != NULL ? list : node,scope);
 		}
 
 		paramCount += list->data.paramList.params.count;
@@ -983,7 +999,8 @@ static void registerFunction(astNode *node, Scope *scope, astNode *receiver) {
 		args = calloc(paramCount, sizeof(argInfo));
 
 		if (args == NULL) {
-			semanticError(INTERNAL_ERROR, "Memory allocation failed", node);
+			free(extensionKey);
+			semanticError(INTERNAL_ERROR, "Memory allocation failed", node,scope);
 		}
 	}
 
@@ -996,16 +1013,25 @@ static void registerFunction(astNode *node, Scope *scope, astNode *receiver) {
 			astNode *paramNode = list->data.paramList.params.items[j];
 
 			if (paramNode == NULL || paramNode->type != AST_PARAM) {
+					free(args);
+					free(extensionKey);
+
 				semanticError(INTERNAL_ERROR, "Invalid parameter",
-							  paramNode != NULL ? paramNode : node);
+							  paramNode != NULL ? paramNode : node,scope);
 			}
 			if (paramNode->data.param.name == NULL) {
+					free(args);
+					free(extensionKey);
+
 				semanticError(INTERNAL_ERROR, "Parameter name is NULL",
-							  paramNode);
+							  paramNode,scope);
 			}
 			if (paramNode->data.param.type == TYPE_NONE) {
+					free(args);
+					free(extensionKey);
+
 				semanticError(INTERNAL_ERROR, "Parameter type is TYPE_NONE",
-							  paramNode);
+							  paramNode,scope);
 			}
 
 			args[index].name = paramNode->data.param.name;
@@ -1031,6 +1057,7 @@ static void registerFunction(astNode *node, Scope *scope, astNode *receiver) {
 	symbol->params.receiver = receiver;
 
 	free(args);
+	// symbolName points to extensionKey, so it can be freed only here
 	free(extensionKey);
 }
 
@@ -1038,7 +1065,7 @@ static void analyzeIf(astNode *node, Scope *scope) {
 	analyzeNode(node->data.ifStmt.cond, scope);
 	if (node->data.ifStmt.cond->dataType != TYPE_BOOL) {
 		semanticError(SEMANTIC_TYPE_ERROR, "If condition must be of type bool",
-					  node->data.ifStmt.cond);
+					  node->data.ifStmt.cond,scope);
 	}
 	analyzeNode(node->data.ifStmt.thenBody, scope);
 	astDataType thenType = node->data.ifStmt.thenBody->dataType;
@@ -1066,19 +1093,19 @@ static void analyzeIf(astNode *node, Scope *scope) {
 		node->dataType = TYPE_DOUBLE;
 	} else {
 		semanticError(SEMANTIC_TYPE_ERROR,
-					  "If branches have incompatible types", node);
+					  "If branches have incompatible types", node,scope);
 	}
 
 	if (thenType == TYPE_NONE || elseType == TYPE_NONE) {
 		semanticError(SEMANTIC_TYPE_ERROR,
-					  "Cannot determine if expression type", node);
+					  "Cannot determine if expression type", node,scope);
 	}
 	return;
 }
 
 static void analyzeFor(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_FOR) {
-		semanticError(INTERNAL_ERROR, "Invalid for loop node", node);
+		semanticError(INTERNAL_ERROR, "Invalid for loop node", node,scope);
 		return;
 	}
 	astNode *fromNode = node->data.forLoop.from;
@@ -1088,7 +1115,7 @@ static void analyzeFor(astNode *node, Scope *scope) {
 
 	if (fromNode == NULL || toNode == NULL || bodyNode == NULL ||
 		node->data.forLoop.iterName == NULL) {
-		semanticError(INTERNAL_ERROR, "Invalid for loop structure", node);
+		semanticError(INTERNAL_ERROR, "Invalid for loop structure", node,scope);
 		return;
 	}
 
@@ -1099,19 +1126,19 @@ static void analyzeFor(astNode *node, Scope *scope) {
 		semanticError(
 			SEMANTIC_TYPE_ERROR,
 			"For loop 'from' and 'to' expressions must be of type int",
-			fromNode->dataType != TYPE_INT ? fromNode : toNode);
+			fromNode->dataType != TYPE_INT ? fromNode : toNode,scope);
 	}
 	if (stepNode != NULL) {
 		analyzeNode(stepNode, scope);
 		if (stepNode->dataType != TYPE_INT) {
 			semanticError(SEMANTIC_TYPE_ERROR,
 						  "For loop 'step' expression must be of type int",
-						  stepNode);
+						  stepNode,scope);
 		}
 		if (stepNode->data.intValue == 0) {
 			semanticError(SEMANTIC_ERROR,
 						  "For loop 'step' expression cannot be zero",
-						  stepNode);
+						  stepNode,scope);
 		}
 	}
 
@@ -1137,13 +1164,13 @@ static void analyzeFor(astNode *node, Scope *scope) {
 		 guardIndex++) {
 		astNode *guardNode = node->data.forLoop.guards.items[guardIndex];
 		if (guardNode == NULL) {
-			semanticError(INTERNAL_ERROR, "Invalid for loop guard", node);
+			semanticError(INTERNAL_ERROR, "Invalid for loop guard", node,&forScope);
 		}
 		analyzeNode(guardNode, &forScope);
 		if (guardNode->dataType != TYPE_BOOL) {
 			semanticError(SEMANTIC_TYPE_ERROR,
 						  "For loop guard expressions must be of type bool",
-						  guardNode);
+						  guardNode,&forScope);
 		}
 	}
 	analyzeNode(bodyNode, &forScope);
@@ -1152,13 +1179,13 @@ static void analyzeFor(astNode *node, Scope *scope) {
 
 static void analyzeWhile(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_WHILE) {
-		semanticError(INTERNAL_ERROR, "Invalid while loop node", node);
+		semanticError(INTERNAL_ERROR, "Invalid while loop node", node,scope);
 		return;
 	}
 
 	if (node->data.whileLoop.cond == NULL ||
 		node->data.whileLoop.body == NULL) {
-		semanticError(INTERNAL_ERROR, "Invalid while loop structure", node);
+		semanticError(INTERNAL_ERROR, "Invalid while loop structure", node,scope);
 		return;
 	}
 
@@ -1166,7 +1193,7 @@ static void analyzeWhile(astNode *node, Scope *scope) {
 	if (node->data.whileLoop.cond->dataType != TYPE_BOOL) {
 		semanticError(SEMANTIC_TYPE_ERROR,
 					  "While condition must be of type bool",
-					  node->data.whileLoop.cond);
+					  node->data.whileLoop.cond,scope);
 	}
 	Scope whileScope = {.symbols = initTree(),
 						.parent = scope,
@@ -1179,7 +1206,7 @@ static void analyzeWhile(astNode *node, Scope *scope) {
 
 static void registerExtension(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_EXTENSION) {
-		semanticError(INTERNAL_ERROR, "Invalid extension node", node);
+		semanticError(INTERNAL_ERROR, "Invalid extension node", node,scope);
 		return;
 	}
 
@@ -1188,7 +1215,7 @@ static void registerExtension(astNode *node, Scope *scope) {
 	if (receiver == NULL || receiver->type != AST_PARAM ||
 		receiver->data.param.type == TYPE_NONE) {
 		semanticError(SEMANTIC_TYPE_ERROR, "Invalid extension receiver",
-					  receiver != NULL ? receiver : node);
+					  receiver != NULL ? receiver : node,scope);
 	}
 
 	for (size_t i = 0; i < node->data.extension.funDefs.count; i++) {
@@ -1200,12 +1227,12 @@ static void registerExtension(astNode *node, Scope *scope) {
 
 static void analyzeExtension(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_EXTENSION) {
-		semanticError(INTERNAL_ERROR, "Invalid extension node", node);
+		semanticError(INTERNAL_ERROR, "Invalid extension node", node,scope);
 		return;
 	}
 
 	if (node->data.extension.receiver == NULL) {
-		semanticError(INTERNAL_ERROR, "Invalid extension structure", node);
+		semanticError(INTERNAL_ERROR, "Invalid extension structure", node,scope);
 		return;
 	}
 
@@ -1219,18 +1246,18 @@ static void analyzeExtension(astNode *node, Scope *scope) {
 }
 
 static char *makeExtensionPrefix(astDataType type, const char *name,
-								 const astNode *node) {
+								 const astNode *node,Scope* scope) {
 	int len = snprintf(NULL, 0, "#EXT:%d:%s", (int)type, name);
 
 	if (len < 0) {
 		semanticError(INTERNAL_ERROR, "Cannot create extension prefix string",
-					  node);
+					  node,scope);
 	}
 
 	char *key = malloc((size_t)len + 1);
 
 	if (key == NULL) {
-		semanticError(INTERNAL_ERROR, "Memory allocation failed", node);
+		semanticError(INTERNAL_ERROR, "Memory allocation failed", node,scope);
 	}
 
 	snprintf(key, (size_t)len + 1, "#EXT:%d:%s", (int)type, name);
@@ -1250,9 +1277,15 @@ static void analyzeMember(astNode *node, Scope *scope) {
 	if (definition != NULL && definition->data.funcDef.paramLists.count > 0) {
 
 		semanticError(SEMANTIC_ARGUMENT_COUNT_ERROR,
-					  "Extension method requires parentheses", node);
+					  "Extension method requires parentheses", node,scope);
 		return;
 	}
+
+	if (definition != NULL && method->params.resolveState == TYPE_RESOLVING &&
+		method->params.type == TYPE_NONE)
+		semanticError(SEMANTIC_TYPE_ERROR, "Cannot infer return type of recursive functions; declare a return type", node, scope);
+	if (definition != NULL && method->params.resolveState == TYPE_UNVISITED)
+		analyzeFunctionLazy(definition, scope, method->params.receiver);
 
 	node->dataType = method->params.type;
 	return;
@@ -1260,14 +1293,14 @@ static void analyzeMember(astNode *node, Scope *scope) {
 
 static AVLNode *lookupExtension(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_MEMBER) {
-		semanticError(INTERNAL_ERROR, "Invalid member node", node);
+		semanticError(INTERNAL_ERROR, "Invalid member node", node,scope);
 		return NULL;
 	}
 
 	astNode *object = node->data.member.object;
 
 	if (object == NULL || node->data.member.name == NULL) {
-		semanticError(INTERNAL_ERROR, "Invalid member structure", node);
+		semanticError(INTERNAL_ERROR, "Invalid member structure", node,scope);
 		return NULL;
 	}
 
@@ -1275,12 +1308,12 @@ static AVLNode *lookupExtension(astNode *node, Scope *scope) {
 
 	if (object->dataType == TYPE_NONE) {
 		semanticError(SEMANTIC_TYPE_ERROR, "Unknown member object type",
-					  object);
+					  object,scope);
 		return NULL;
 	}
 
 	char *key =
-		makeExtensionPrefix(object->dataType, node->data.member.name, node);
+		makeExtensionPrefix(object->dataType, node->data.member.name, node,scope);
 
 	AVLNode *symbol = searchSymbolInScope(scope, key);
 
@@ -1288,12 +1321,12 @@ static AVLNode *lookupExtension(astNode *node, Scope *scope) {
 
 	if (symbol == NULL) {
 		semanticError(SEMANTIC_UNDEFINITION_ERROR, "Undefined extension method",
-					  node);
+					  node,scope);
 		return NULL;
 	}
 
 	if (symbol->params.node_type != FUNCTION) {
-		semanticError(SEMANTIC_TYPE_ERROR, "Member is not a function", node);
+		semanticError(SEMANTIC_TYPE_ERROR, "Member is not a function", node,scope);
 		return NULL;
 	}
 
@@ -1302,7 +1335,7 @@ static AVLNode *lookupExtension(astNode *node, Scope *scope) {
 
 static void analyzeReturn(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_RETURN) {
-		semanticError(INTERNAL_ERROR, "Invalid return node", node);
+		semanticError(INTERNAL_ERROR, "Invalid return node", node,scope);
 		return;
 	}
 
@@ -1318,7 +1351,7 @@ static void analyzeReturn(astNode *node, Scope *scope) {
 	}
 
 	if (function == NULL) {
-		semanticError(10, "Return outside function", node);
+		semanticError(10, "Return outside function", node,scope);
 		return;
 	}
 
@@ -1326,7 +1359,7 @@ static void analyzeReturn(astNode *node, Scope *scope) {
 
 	if (expectedType == TYPE_NONE) {
 		semanticError(SEMANTIC_TYPE_ERROR,
-					  "Function with return must declare return type", node);
+					  "Function with return must declare return type", node,scope);
 		return;
 	}
 
@@ -1334,7 +1367,7 @@ static void analyzeReturn(astNode *node, Scope *scope) {
 
 	if (value == NULL) {
 		if (expectedType != TYPE_UNIT) {
-			semanticError(SEMANTIC_TYPE_ERROR, "Missing return value", node);
+			semanticError(SEMANTIC_TYPE_ERROR, "Missing return value", node,scope);
 			return;
 		}
 
@@ -1347,7 +1380,7 @@ static void analyzeReturn(astNode *node, Scope *scope) {
 	astDataType actualType = value->dataType;
 
 	if (actualType == TYPE_NONE) {
-		semanticError(SEMANTIC_TYPE_ERROR, "Invalid return expression", value);
+		semanticError(SEMANTIC_TYPE_ERROR, "Invalid return expression", value,scope);
 		return;
 	}
 
@@ -1359,7 +1392,7 @@ static void analyzeReturn(astNode *node, Scope *scope) {
 	if (actualType != expectedType &&
 		!(expectedType == TYPE_DOUBLE && actualType == TYPE_INT)) {
 
-		semanticError(SEMANTIC_TYPE_ERROR, "Return type mismatch", value);
+		semanticError(SEMANTIC_TYPE_ERROR, "Return type mismatch", value,scope);
 		return;
 	}
 
@@ -1368,7 +1401,7 @@ static void analyzeReturn(astNode *node, Scope *scope) {
 
 static void analyzeInterp(astNode *node, Scope *scope) {
 	if (node == NULL || node->type != AST_INTERP) {
-		semanticError(INTERNAL_ERROR, "Invalid interpolation node", node);
+		semanticError(INTERNAL_ERROR, "Invalid interpolation node", node,scope);
 		return;
 	}
 
@@ -1376,7 +1409,7 @@ static void analyzeInterp(astNode *node, Scope *scope) {
 		astNode *part = node->data.interp.parts.items[i];
 
 		if (part == NULL) {
-			semanticError(INTERNAL_ERROR, "Invalid interpolation part", node);
+			semanticError(INTERNAL_ERROR, "Invalid interpolation part", node,scope);
 			return;
 		}
 
@@ -1384,7 +1417,7 @@ static void analyzeInterp(astNode *node, Scope *scope) {
 
 		if (part->dataType == TYPE_NONE) {
 			semanticError(SEMANTIC_TYPE_ERROR,
-						  "Invalid interpolation expression", part);
+						  "Invalid interpolation expression", part,scope);
 			return;
 		}
 	}
@@ -1438,4 +1471,44 @@ static bool lastStatementReturns(const astNode* body) {
     }
 
     return alwaysReturns(last);
+}
+
+static Scope *destroyScopeChain(Scope *scope) {
+	while (scope != NULL && scope->parent != NULL) {
+		destroyAVL(scope->symbols);
+		scope->symbols = NULL;
+		scope = scope->parent;
+	}
+	return scope;
+}
+
+static void destroyFullAVL(Scope* scope){
+	Scope *globalScope = destroyScopeChain(scope);
+
+	for (SuspendedScope *s = suspendedScopes; s != NULL; s = s->prev) {
+		Scope *root = destroyScopeChain(s->scope);
+		if (globalScope == NULL)
+			globalScope = root;
+	}
+	suspendedScopes = NULL;
+
+	if (globalScope != NULL) {
+		destroyAVL(globalScope->symbols);
+		globalScope->symbols = NULL;
+	}
+}
+
+static void analyzeFunctionLazy(astNode *definition, Scope *scope,
+								astNode *receiver) {
+	Scope *definitionScope = scope;
+	while (definitionScope->parent != NULL) {
+		definitionScope = definitionScope->parent;
+	}
+
+	SuspendedScope suspended = {.scope = scope, .prev = suspendedScopes};
+	suspendedScopes = &suspended;
+
+	analyzeFunction(definition, definitionScope, receiver);
+
+	suspendedScopes = suspended.prev;
 }
