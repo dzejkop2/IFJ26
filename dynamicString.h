@@ -9,6 +9,12 @@
 
 #include "stddef.h"
 
+/**
+ * @brief Struct that represents dynamicString
+ * @param memPointer pointer to allocated buffer of characters
+ * @param currLenght number of characters currently stored in buffer
+ * @param capacity   size of allocated buffer
+ */
 typedef struct {
 	char *memPointer;
 	size_t currLenght;

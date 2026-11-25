@@ -13,6 +13,12 @@
 
 #define MALLOC_MEM 16
 
+/**
+ * @brief Helper function that initialise dynamicString, allocating MALLOC_MEM
+ * of space and sets its length to zero
+ *
+ * @param dynStr pointer to dynamicString that is initialised
+ */
 void dynStr_ctor(dynamicString *dynStr) {
 	dynStr->memPointer = malloc(sizeof(char) * MALLOC_MEM);
 	if (dynStr->memPointer == NULL) {
@@ -22,6 +28,12 @@ void dynStr_ctor(dynamicString *dynStr) {
 	dynStr->capacity = MALLOC_MEM;
 }
 
+/**
+ * @brief Helper function that appends one character to the end of dynamicString
+ *
+ * @param dynStr pointer to dynamicString
+ * @param input character that is appended
+ */
 void dynStr_load(dynamicString *dynStr, char input) {
 	if (dynStr->currLenght + 1 >= dynStr->capacity) {
 		size_t reallocHelperCapacity = dynStr->capacity * 2;
@@ -37,8 +49,19 @@ void dynStr_load(dynamicString *dynStr, char input) {
 	dynStr->currLenght++;
 }
 
+/**
+ * @brief Helper function that clears dynamicString, sets its length to zero
+ *
+ * @param dynStr pointer to dynamicString
+ */
 void dynStr_freeBuff(dynamicString *dynStr) { dynStr->currLenght = 0; }
 
+/**
+ * @brief Helper function that creates a new dynamicString
+ *
+ * @param dynStr pointer to dynamicString
+ * @return pointer to new allocated string
+ */
 char *dynStr_output(const dynamicString *dynStr) {
 	char *mallocHelper = malloc(sizeof(char) * (dynStr->currLenght + 1));
 	if (mallocHelper == NULL) {
@@ -50,6 +73,12 @@ char *dynStr_output(const dynamicString *dynStr) {
 	return mallocHelper;
 }
 
+/**
+ * @brief Memory helper function that frees memory of dynamicString and resets
+ * its values
+ *
+ * @param dynStr pointer to dynamicString
+ */
 void dynStr_dtor(dynamicString *dynStr) {
 	dynStr->currLenght = 0;
 	dynStr->capacity = 0;
