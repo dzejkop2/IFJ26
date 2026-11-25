@@ -120,6 +120,7 @@ void parserCleanup(void) {
 	if (!parser.active)
 		return;
 	parser.active = false;
+	tokenFree(&parser.current);
 
 	while (parser.unattachedCount > 0) {
 		parser.unattachedCount--;
@@ -217,6 +218,7 @@ astNode *parse(void) {
 }
 
 void parserAdvance(void) {
+	parser.current.value.word = NULL;
 	parser.current = getToken();
 	PARSER_DEBUG_TOKEN(parser.current);
 }
@@ -811,6 +813,7 @@ void parseGenerator(astNode *forNode) {
 	} else {
 		error(SYNTAX_ERROR, "Expected 'to' or 'until' in for range");
 	}
+	tokenFree(&parser.current);
 	parserAdvance();
 
 	forNode->data.forLoop.to = parserMarkAttached(parseExpr());
@@ -818,6 +821,7 @@ void parseGenerator(astNode *forNode) {
 		error(SYNTAX_ERROR, "Expected end of range in for");
 
 	if (parserCheckWord("by")) {
+		tokenFree(&parser.current);
 		parserAdvance();
 
 		forNode->data.forLoop.step = parserMarkAttached(parseExpr());
