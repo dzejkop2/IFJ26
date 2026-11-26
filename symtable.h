@@ -27,8 +27,8 @@ typedef struct node_param_t {
 	nodeType node_type;
 	bool is_mutable;
 
-	size_t param_count;
-	argInfo *param_list;
+	size_t param_count;	 // Number of parameters (functions only)
+	argInfo *param_list; // Parameters (functions only), NULL otherwise
 	typeResolveState resolveState;
 	astNode *definition;
 	astNode *receiver;

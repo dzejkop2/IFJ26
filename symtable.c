@@ -9,10 +9,30 @@
 #include <string.h>
 #include <malloc.h>
 
+/**
+ * @brief Creates empty tree
+ *
+ * @return NULL -> represents an empty tree
+ */
 AVLNode *initTree(void) { return NULL; }
 
+/**
+ * @brief Checks if the tree is empty
+ *
+ * @param root     Pointer to the root node of the tree
+ *
+ * @return true if the tree contains no nodes, false otherwise
+ */
 bool symtableIsEmpty(AVLNode *root) { return root == NULL; }
 
+/**
+ * @brief Searches the tree for a symbol with the provided name
+ *
+ * @param root     Pointer to the root node of the tree
+ * @param string   Name of the symbol to find
+ *
+ * @return node that contains the name, otherwise NULL
+ */
 AVLNode *searchNode(AVLNode *root, char *string) {
 	if (symtableIsEmpty(root))
 		return NULL;
@@ -34,20 +54,58 @@ AVLNode *searchNode(AVLNode *root, char *string) {
 	return temp_node;
 }
 
+/**
+ * @brief Gets height of tree or subtree based on provided node
+ *
+ * @param root     Pointer to the node in the tree
+ *
+ * @return height of subtree or tree if its not empty, 0 otherwise
+ */
 int getHeight(AVLNode *root) {
 	if (!symtableIsEmpty(root))
 		return root->height;
 	return 0;
 }
 
+/**
+ * @brief Gets balance factor of the node
+ *
+ * In a valid AVL tree it is always in the range [-1, 1].
+ * A positive value means the node is left-heavy,
+ * a negative value means right-heavy.
+ *
+ * @param root     Pointer to the node in the tree
+ *
+ * @return height of left subtree minus height of right subtree,
+ * otherwise 0 if the node is NULL
+ */
 int getBalanceFactor(AVLNode *root) {
 	if (!symtableIsEmpty(root))
 		return getHeight(root->left) - getHeight(root->right);
 	return 0;
 }
 
+/**
+ * @brief Gets greater value from two integers
+ *
+ * Helper function for height calculation
+ *
+ * @param a     First integer
+ * @param b     Second integer
+ *
+ * @return a if a is greater than b, otherwise b
+ */
 int max(int a, int b) { return a > b ? a : b; }
 
+/**
+ * @brief Rotates subtree to the left
+ *
+ * Helper function for insert
+ *
+ * @param node     Pointer to the node in the tree
+ *
+ * @return new root of the subtree, otherwise NULL if node is NULL
+ */
 AVLNode *leftRotate(AVLNode *node) {
 	if (node == NULL)
 		return NULL;
@@ -66,6 +124,15 @@ AVLNode *leftRotate(AVLNode *node) {
 	return temp_node_b;
 }
 
+/**
+ * @brief Rotates subtree to the right
+ *
+ * Helper function for insert
+ *
+ * @param node     Pointer to the node in the tree
+ *
+ * @return new root of the subtree, otherwise NULL if node is NULL
+ */
 AVLNode *rightRotate(AVLNode *node) {
 	if (node == NULL)
 		return NULL;
@@ -84,6 +151,15 @@ AVLNode *rightRotate(AVLNode *node) {
 	return temp_node_a;
 }
 
+/**
+ * @brief Creates new node and fills it from the provided symbol info
+ *
+ * Helper function for insert
+ *
+ * @param params   Symbol information to store in the node
+ *
+ * @return pointer to the new node, otherwise NULL if memory allocation failed
+ */
 AVLNode *createNode(paramInfo params) {
 	AVLNode *temp_node = (AVLNode *)malloc(sizeof(AVLNode));
 	if (temp_node == NULL) {
@@ -165,6 +241,14 @@ AVLNode *createNode(paramInfo params) {
 	return temp_node;
 }
 
+/**
+ * @brief Inserts symbol into the tree and rebalances it
+ *
+ * @param root     Pointer to the root node of the tree
+ * @param params   Symbol information to insert
+ *
+ * @return new root of the tree
+ */
 AVLNode *insertNode(AVLNode *root, paramInfo params) {
 	if (root == NULL)
 		return createNode(params);
@@ -197,6 +281,11 @@ AVLNode *insertNode(AVLNode *root, paramInfo params) {
 	return root;
 }
 
+/**
+ * @brief Frees a single node and its allocated memory
+ *
+ * @param node     Node to be freed
+ */
 void deleteNode(AVLNode *node) {
 	free(node->params.name);
 
@@ -212,6 +301,11 @@ void deleteNode(AVLNode *node) {
 	free(node);
 }
 
+/**
+ * @brief Frees the whole tree
+ *
+ * @param root     Pointer to the root node of the tree
+ */
 void destroyAVL(AVLNode *root) {
 	if (root == NULL)
 		return;
