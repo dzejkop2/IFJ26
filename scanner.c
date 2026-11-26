@@ -346,7 +346,7 @@ token getTokenChecked(void) {
 				}
 				bufferAdvance();
 				modePop();
-				helpToken.absType = abs_interp;
+				helpToken.absType = abs_intp;
 				helpToken.specType = intp_exprEnd;
 				return makeToken(helpToken);
 			} else if (currentSign == ',') {
@@ -435,7 +435,7 @@ token getTokenChecked(void) {
 					} else {
 						modePush(MODE_INTERP);
 					}
-					helpToken.absType = abs_interp;
+					helpToken.absType = abs_intp;
 					helpToken.specType = intp_begin;
 					return makeToken(helpToken);
 				}
@@ -996,7 +996,7 @@ token getTokenChecked(void) {
 					storeSign();
 					intpLen++;
 				} else if (intpLen > 0) {
-					helpToken.absType = abs_interp;
+					helpToken.absType = abs_intp;
 					helpToken.specType = intp_part;
 					helpToken.value.word = dynStr_output(&dynStr);
 					return makeToken(helpToken);
@@ -1007,7 +1007,7 @@ token getTokenChecked(void) {
 						bufferAdvance();
 					}
 					modePop();
-					helpToken.absType = abs_interp;
+					helpToken.absType = abs_intp;
 					helpToken.specType = intp_end;
 					return makeToken(helpToken);
 				}
@@ -1018,7 +1018,7 @@ token getTokenChecked(void) {
 					dynStr_load(&dynStr, '$');
 					intpLen++;
 				} else if (intpLen > 0) {
-					helpToken.absType = abs_interp;
+					helpToken.absType = abs_intp;
 					helpToken.specType = intp_part;
 					helpToken.value.word = dynStr_output(&dynStr);
 					return makeToken(helpToken);
@@ -1059,7 +1059,7 @@ token getTokenChecked(void) {
 			if (currentSign == '{') {
 				bufferAdvance();
 				modePush(MODE_EXPR);
-				helpToken.absType = abs_interp;
+				helpToken.absType = abs_intp;
 				helpToken.specType = intp_exprBegin;
 				return makeToken(helpToken);
 			} else if (idType(currentSign) == 1 || idType(currentSign) == 3) {

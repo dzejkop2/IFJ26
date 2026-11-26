@@ -23,7 +23,7 @@ typedef enum {
 	abs_position,
 	abs_control,
 	abs_reserved,
-	abs_interp,
+	abs_intp,
 } absTokenType;
 
 /**
