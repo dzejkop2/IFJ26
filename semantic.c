@@ -6,7 +6,7 @@
  * AI usage:
  * "Concsutation about about semantic analysis strucsture"
  * "Generation of test set for semantic analysis"
- * "Help woth debugging code"
+ * "Assistance with debugging code"
  */
 
 #include "semantic.h"
@@ -21,7 +21,6 @@ static void analyzeNodeList(astNodeList nodeList, Scope *scope);
 static void analyzeNode(astNode *node, Scope *scope);
 static void analyzeBinaryOp(astNode *node, Scope *scope);
 static void analyzeUnaryOp(astNode *node, Scope *scope);
-static void analyzeNode(astNode *node, Scope *scope);
 static void analyzeIdentifier(astNode *node, Scope *scope);
 static void analyzeVarDecl(astNode *node, Scope *scope);
 static void analyzeBlock(astNode *node, Scope *parentScope);
@@ -59,11 +58,11 @@ typedef struct SuspendedScope {
 static SuspendedScope *suspendedScopes = NULL;
 
 /**
- * @brief Prints error on stderr and frees all allocated memory
- * @param code EXIT_CODE of error message
- * @param message String with error message
- * @param node Pointer to astNode on wich semantic analysis failed
- * @param scope Pointer to scope where analysis failed
+ * @brief Reports a semantic error and releases the AST and symbol tables.
+ * @param code Error exit code.
+ * @param message Error message.
+ * @param node AST node used to determine the source location.
+ * @param scope Scope in which the error occurred.
  */
 static void semanticError(int code, const char *message, const astNode *node,
                           Scope *scope) {
@@ -537,8 +536,7 @@ static void analyzeIdentifier(astNode *node, Scope *scope) {
       return;
     }
 
-    // checks if function has been analyzed and still doesnt have type
-    // if this occurs function cannot be called
+    // Detect recursive calls with an unresolved return type
     if (symbol->params.resolveState == TYPE_RESOLVING &&
         symbol->params.type == TYPE_NONE) {
       semanticError(SEMANTIC_TYPE_ERROR,
@@ -581,8 +579,8 @@ static void analyzeFunction(astNode *node, Scope *scope, astNode *receiver) {
   if (searchedFunction->params.resolveState == TYPE_RESOLVED) {
     return;
   }
-  // Sets resolveState to resolving to prevent calling function with no return
-  // type after analyzation
+
+  // Detect recursive dependencies with an unresolved return type.
   if (searchedFunction->params.resolveState == TYPE_RESOLVING &&
       searchedFunction->params.type == TYPE_NONE) {
     semanticError(SEMANTIC_TYPE_ERROR,
@@ -1342,6 +1340,7 @@ static void analyzeExtension(astNode *node, Scope *scope) {
  * @param name String with extension name
  * @param node Pointer to extensionNode used only for error message
  * @param scope Pointer to scope of extension used only for error message
+ * @return Dynamically allocated extension key that must be freed by the caller.
  */
 static char *makeExtensionPrefix(astDataType type, const char *name,
                                  const astNode *node, Scope *scope) {
@@ -1447,10 +1446,9 @@ static AVLNode *lookupExtension(astNode *node, Scope *scope) {
 }
 
 /**
- * @brief Checks for validity of returnNode and compatibility with function
- * above it
- * @param node Pointer to a returnNode
- * @param scope Pointer to scope of return
+ * @brief Determines whether an AST node guarantees an explicit return.
+ * @param node Pointer to the AST node being checked.
+ * @return True if the node guarantees a return, otherwise false.
  */
 static void analyzeReturn(astNode *node, Scope *scope) {
   if (node == NULL || node->type != AST_RETURN) {
@@ -1584,9 +1582,10 @@ static bool alwaysReturns(const astNode *node) {
 }
 
 /**
- * @brief Help function for determinate whether last statement of body is return
- * @param body Pointer to blockNode wich will be checking
- * @return TRUE if last node of block is return, else FALSE
+ * @brief Checks whether the last statement of a function body guarantees an
+ * explicit return.
+ * @param body Pointer to the function body AST node.
+ * @return True if the last statement guarantees a return, otherwise false.
  */
 static bool lastStatementReturns(const astNode *body) {
   if (body == NULL) {
@@ -1609,9 +1608,10 @@ static bool lastStatementReturns(const astNode *body) {
 }
 
 /**
- * @brief Destroys full secondary AVLtree branch
- * @param scope Pointer to a scope of suspended scope that we are destroying
- * @return Returns a oldest parent scope of function (idealy root)
+ * @brief Destroys symbol tables along the scope chain, excluding the global
+ * scope.
+ * @param scope Pointer to the starting scope.
+ * @return Pointer to the global scope, or NULL if scope is NULL.
  */
 static Scope *destroyScopeChain(Scope *scope) {
   while (scope != NULL && scope->parent != NULL) {
@@ -1623,8 +1623,8 @@ static Scope *destroyScopeChain(Scope *scope) {
 }
 
 /**
- * @brief Destroys all AVLtrees and garants no memory leaks
- * @param scope Pointer to scope we are curently in
+ * @brief Destroys symbol tables of all active and suspended scopes.
+ * @param scope Pointer to the current scope.
  */
 static void destroyFullAVL(Scope *scope) {
   Scope *globalScope = destroyScopeChain(scope);
@@ -1644,11 +1644,11 @@ static void destroyFullAVL(Scope *scope) {
 }
 
 /**
- * @brief Analyzes function that has been used in different funcion but not yet
- * analysed
- * @param definition Pointer to a node of called function
- * @param scope Pointer to a scope of calling of function
- * @param receiver Ponter to receiverNode if function is extension else NULL
+ * @brief Analyzes a previously unvisited function in the global scope while
+ * preserving the calling scope for error cleanup.
+ * @param definition Pointer to the called function definition.
+ * @param scope Pointer to the calling scope.
+ * @param receiver Extension receiver or NULL for a regular function.
  */
 static void analyzeFunctionLazy(astNode *definition, Scope *scope,
                                 astNode *receiver) {
