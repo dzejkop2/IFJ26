@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include "builtin.h"
 
+/**
+ * @brief Generates the "print" built in function
+ */
 void builtinGenPrint(void) {
 	printf("LABEL $$print\n");
 	printf("CREATEFRAME\n");
@@ -24,6 +27,9 @@ void builtinGenPrint(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "readLine" built in function
+ */
 void builtinGenReadLine(void) {
 	printf("LABEL $$readLine\n");
 	printf("CREATEFRAME\n");
@@ -40,6 +46,9 @@ void builtinGenReadLine(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "readInt" built in function
+ */
 void builtinGenReadInt(void) {
 	printf("LABEL $$readInt\n");
 	printf("CREATEFRAME\n");
@@ -56,6 +65,9 @@ void builtinGenReadInt(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "readDouble" built in function
+ */
 void builtinGenReadDouble(void) {
 	printf("LABEL $$readDouble\n");
 	printf("CREATEFRAME\n");
@@ -72,6 +84,9 @@ void builtinGenReadDouble(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "toStr" built in function
+ */
 void builtinGenToStr(void) {
 	printf("LABEL $$toStr\n");
 	printf("CREATEFRAME\n");
@@ -106,6 +121,9 @@ void builtinGenToStr(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "toInt" built in function
+ */
 void builtinGenToInt(void) {
 	printf("LABEL $$toInt\n");
 	printf("CREATEFRAME\n");
@@ -119,6 +137,9 @@ void builtinGenToInt(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "strLength" built in function
+ */
 void builtinGenStrLength(void) {
 	printf("LABEL $$strLength\n");
 	printf("CREATEFRAME\n");
@@ -132,6 +153,9 @@ void builtinGenStrLength(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "subStr" built in function
+ */
 void builtinGenSubStr(void) {
 	printf("LABEL $$subStr\n");
 	printf("CREATEFRAME\n");
@@ -174,6 +198,9 @@ void builtinGenSubStr(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "ord" built in function
+ */
 void builtinGenOrd(void) {
 	printf("LABEL $$ord\n");
 	printf("CREATEFRAME\n");
@@ -200,6 +227,9 @@ void builtinGenOrd(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "chr" built in function
+ */
 void builtinGenChr(void) {
 	printf("LABEL $$chr\n");
 	printf("CREATEFRAME\n");
@@ -213,6 +243,9 @@ void builtinGenChr(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "readBoolean" built in function
+ */
 void builtinGenReadBoolean(void) {
 	printf("LABEL $$readBoolean\n");
 	printf("CREATEFRAME\n");
@@ -224,6 +257,9 @@ void builtinGenReadBoolean(void) {
 	printf("RETURN\n");
 }
 
+/**
+ * @brief Generates the "floor" built in member call
+ */
 void builtinGenFloor(void) {
 	printf("LABEL $$floor\n");
 	printf("CREATEFRAME\n");

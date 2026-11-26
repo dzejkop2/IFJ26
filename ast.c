@@ -16,12 +16,21 @@
 
 #define LIST_INIT_CAPACITY 4
 
+/**
+ * @brief Init an AST node list
+ * @param list The list to init
+ */
 void astListInit(astNodeList *list) {
 	list->items = NULL;
 	list->count = 0;
 	list->capacity = 0;
 }
 
+/**
+ * @brief Append a node to an AST node list
+ * @param list The list to append to
+ * @param node The node to append
+ */
 void astListAppend(astNodeList *list, astNode *node) {
 	if (list->count == list->capacity) {
 		size_t newCapacity = list->capacity;
@@ -43,6 +52,10 @@ void astListAppend(astNodeList *list, astNode *node) {
 	list->count++;
 }
 
+/**
+ * @brief Free an AST node list
+ * @param list The list to free
+ */
 void astListFree(astNodeList *list) {
 	free(list->items);
 	astListInit(list);
@@ -56,6 +69,13 @@ static void freeNodeList(astNodeList *list) {
 	astListFree(list);
 }
 
+/**
+ * @brief Creates a new node
+ * @param type Specifies the type of the AST node
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new node
+ */
 astNode *astNewNode(astNodeType type, int line, int col) {
 	astNode *node = calloc(1, sizeof(astNode));
 	if (node == NULL)
@@ -68,6 +88,10 @@ astNode *astNewNode(astNodeType type, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Frees the AST
+ * @param node Root node of AST
+ */
 void astFree(astNode *node) {
 	if (node == NULL)
 		return;
@@ -162,6 +186,13 @@ void astFree(astNode *node) {
 	free(node);
 }
 
+/**
+ * @brief Creates a node of type Program
+ * @param importName Value of the import string
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Program node
+ */
 astNode *astNewProgram(char *importName, int line, int col) {
 	astNode *node = astNewNode(AST_PROGRAM, line, col);
 
@@ -171,6 +202,14 @@ astNode *astNewProgram(char *importName, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Function Definition
+ * @param name Name of the function being defined
+ * @param isMain Is the function a main function (@main)
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Function Definition node
+ */
 astNode *astNewFuncDef(char *name, bool isMain, int line, int col) {
 	astNode *node = astNewNode(AST_FUN_DEF, line, col);
 
@@ -183,6 +222,13 @@ astNode *astNewFuncDef(char *name, bool isMain, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Extension
+ * @param receiver A node that the extension is being called on
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Extension node
+ */
 astNode *astNewExtension(astNode *receiver, int line, int col) {
 	astNode *node = astNewNode(AST_EXTENSION, line, col);
 
@@ -192,6 +238,12 @@ astNode *astNewExtension(astNode *receiver, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Parameter list
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Parameter list node
+ */
 astNode *astNewParamList(int line, int col) {
 	astNode *node = astNewNode(AST_PARAM_LIST, line, col);
 
@@ -200,6 +252,14 @@ astNode *astNewParamList(int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Parameter
+ * @param name Name of the parameter
+ * @param type Type of the parameter
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Parameter node
+ */
 astNode *astNewParam(char *name, astDataType type, int line, int col) {
 	astNode *node = astNewNode(AST_PARAM, line, col);
 
@@ -209,6 +269,12 @@ astNode *astNewParam(char *name, astDataType type, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Code Block
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Code Block node
+ */
 astNode *astNewBlock(int line, int col) {
 	astNode *node = astNewNode(AST_BLOCK, line, col);
 
@@ -217,6 +283,16 @@ astNode *astNewBlock(int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Var Declaration
+ * @param name Name of the declared variable
+ * @param declType Type of the declared variable
+ * @param value Node that holds the value
+ * @param isMutable Specifies if the variable can be changed (var / val)
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Var Declaration node
+ */
 astNode *astNewVarDecl(char *name, astDataType declType, astNode *value,
 					   bool isMutable, int line, int col) {
 	astNode *node = astNewNode(AST_VAR_DECL, line, col);
@@ -229,6 +305,14 @@ astNode *astNewVarDecl(char *name, astDataType declType, astNode *value,
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Assignment
+ * @param target Which node is being assigned to
+ * @param value Node that holds the value being assigned
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Assignment node
+ */
 astNode *astNewAssign(astNode *target, astNode *value, int line, int col) {
 	astNode *node = astNewNode(AST_ASSIGN, line, col);
 
@@ -238,6 +322,13 @@ astNode *astNewAssign(astNode *target, astNode *value, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Return
+ * @param value Node that holds the value being returned
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Return node
+ */
 astNode *astNewReturn(astNode *value, int line, int col) {
 	astNode *node = astNewNode(AST_RETURN, line, col);
 
@@ -246,6 +337,14 @@ astNode *astNewReturn(astNode *value, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type While
+ * @param cond Node holding the condition of the loop
+ * @param body Node holding the body of the loop
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new While node
+ */
 astNode *astNewWhile(astNode *cond, astNode *body, int line, int col) {
 	astNode *node = astNewNode(AST_WHILE, line, col);
 
@@ -255,6 +354,13 @@ astNode *astNewWhile(astNode *cond, astNode *body, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type For
+ * @param iterName Iterator name
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new For node
+ */
 astNode *astNewFor(char *iterName, int line, int col) {
 	astNode *node = astNewNode(AST_FOR, line, col);
 
@@ -269,6 +375,15 @@ astNode *astNewFor(char *iterName, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type If
+ * @param cond Node holding the condition of the statement
+ * @param thenBody Node holding the first body of the If
+ * @param elseBody Node holding the else body of the If
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new If node
+ */
 astNode *astNewIf(astNode *cond, astNode *thenBody, astNode *elseBody, int line,
 				  int col) {
 	astNode *node = astNewNode(AST_IF, line, col);
@@ -280,6 +395,13 @@ astNode *astNewIf(astNode *cond, astNode *thenBody, astNode *elseBody, int line,
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Expression statement
+ * @param expr Node holding the expression
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Expression statement node
+ */
 astNode *astNewExprStmt(astNode *expr, int line, int col) {
 	astNode *node = astNewNode(AST_EXPR_STMT, line, col);
 
@@ -288,6 +410,13 @@ astNode *astNewExprStmt(astNode *expr, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Integer literal
+ * @param value value of the integer
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Integer literal node
+ */
 astNode *astNewIntLit(long long value, int line, int col) {
 	astNode *node = astNewNode(AST_LIT_INT, line, col);
 
@@ -296,6 +425,13 @@ astNode *astNewIntLit(long long value, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Double literal
+ * @param value value of the double
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Double literal node
+ */
 astNode *astNewDoubleLit(double value, int line, int col) {
 	astNode *node = astNewNode(AST_LIT_DOUBLE, line, col);
 
@@ -304,6 +440,13 @@ astNode *astNewDoubleLit(double value, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type String literal
+ * @param value value of the string
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new String literal node
+ */
 astNode *astNewStringLit(char *value, int line, int col) {
 	astNode *node = astNewNode(AST_LIT_STRING, line, col);
 
@@ -312,6 +455,13 @@ astNode *astNewStringLit(char *value, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Boolean literal
+ * @param value value of the boolean
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Boolean literal node
+ */
 astNode *astNewBoolLit(bool value, int line, int col) {
 	astNode *node = astNewNode(AST_LIT_BOOL, line, col);
 
@@ -320,10 +470,23 @@ astNode *astNewBoolLit(bool value, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Unit literal
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Unit literal node
+ */
 astNode *astNewUnitLit(int line, int col) {
 	return astNewNode(AST_LIT_UNIT, line, col);
 }
 
+/**
+ * @brief Creates a node of type Identifier
+ * @param name Name of the identifier
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Identifier node
+ */
 astNode *astNewIdentifier(char *name, int line, int col) {
 	astNode *node = astNewNode(AST_IDENTIFIER, line, col);
 
@@ -332,6 +495,15 @@ astNode *astNewIdentifier(char *name, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Binary operation
+ * @param op Operation being performed
+ * @param left Left operand
+ * @param right Right operand
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Binary operation node
+ */
 astNode *astNewBinary(specTokenType op, astNode *left, astNode *right, int line,
 					  int col) {
 	astNode *node = astNewNode(AST_BINARY_OP, line, col);
@@ -343,6 +515,14 @@ astNode *astNewBinary(specTokenType op, astNode *left, astNode *right, int line,
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Unary operation
+ * @param op Operation being performed
+ * @param operand Operand the operation is being performed on
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Unary operation node
+ */
 astNode *astNewUnary(specTokenType op, astNode *operand, int line, int col) {
 	astNode *node = astNewNode(AST_UNARY_OP, line, col);
 
@@ -352,6 +532,13 @@ astNode *astNewUnary(specTokenType op, astNode *operand, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Call
+ * @param callee Function being called
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Call node
+ */
 astNode *astNewCall(astNode *callee, int line, int col) {
 	astNode *node = astNewNode(AST_CALL, line, col);
 
@@ -361,6 +548,16 @@ astNode *astNewCall(astNode *callee, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Member access
+ * @param object Node whose member is being accessed
+ * @param name Name of the member
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Member access node
+ *
+ * Node for the VALMEM extension
+ */
 astNode *astNewMember(astNode *object, char *name, int line, int col) {
 	astNode *node = astNewNode(AST_MEMBER, line, col);
 
@@ -370,6 +567,16 @@ astNode *astNewMember(astNode *object, char *name, int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Creates a node of type Interpolated string
+ * @param line Specifies a line in the input file
+ * @param col Specifies a col in the input
+ * @return Pointer to the new Interpolated string node
+ *
+ * Special node for the INTERPOLATEDS extension,
+ * Interpolated strings are being "built" as the
+ * parser is getting tokens
+ */
 astNode *astNewInterp(int line, int col) {
 	astNode *node = astNewNode(AST_INTERP, line, col);
 
@@ -378,6 +585,12 @@ astNode *astNewInterp(int line, int col) {
 	return node;
 }
 
+/**
+ * @brief Helper function for getting type from a token that
+ * 		  scanner returned
+ * @param specType Token type returned from the scanner
+ * @return Matching AST data type, TYPE_NONE if the token is not a type
+ */
 astDataType astTypeFromToken(specTokenType specType) {
 	switch (specType) {
 	case dt_int:

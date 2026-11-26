@@ -14,14 +14,14 @@
 typedef enum {
 	EXPR_TERM,
 	EXPR_NONTERM,
-	EXPR_HANDLE,
+	EXPR_HANDLE, // marks the start of the rule to reduce
 } exprSymbolKind;
 
 typedef struct {
 	exprSymbolKind kind;
-	int prec;
+	int prec; // precedence table index
 	token tok;
-	astNode *node;
+	astNode *node; // AST node of a reduced expression
 	bool isArgList;
 } exprSymbol;
 
