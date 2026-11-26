@@ -68,6 +68,10 @@ typedef struct {
 	size_t capacity;
 } astNodeList;
 
+/**
+ * @brief Union that is in every node of the AST,
+ *		  each AST node needs different data
+ */
 typedef union nodeData {
 	long long intValue;
 	double doubleValue;
@@ -189,56 +193,43 @@ struct astNode {
 	nodeData data;
 };
 
-/**
- * @brief Init an AST node list
- * @param list The list to init
- */
-void ast_listInit(astNodeList *list);
-/**
- * @brief Append a node to an AST node list
- * @param list The list to append to
- * @param node The node to append
- */
-void ast_listAppend(astNodeList *list, astNode *node);
-/**
- * @brief Free an AST node list
- * @param list The list to free
- */
-void ast_listFree(astNodeList *list);
+void astListInit(astNodeList *list);
+void astListAppend(astNodeList *list, astNode *node);
+void astListFree(astNodeList *list);
 
-astNode *ast_newNode(astNodeType type, int line, int col);
-void ast_free(astNode *node);
+astNode *astNewNode(astNodeType type, int line, int col);
+void astFree(astNode *node);
 
-astNode *ast_newProgram(char *importName, int line, int col);
-astNode *ast_newFuncDef(char *name, bool isMain, int line, int col);
-astNode *ast_newExtension(astNode *receiver, int line, int col);
-astNode *ast_newParamList(int line, int col);
-astNode *ast_newParam(char *name, astDataType type, int line, int col);
+astNode *astNewProgram(char *importName, int line, int col);
+astNode *astNewFuncDef(char *name, bool isMain, int line, int col);
+astNode *astNewExtension(astNode *receiver, int line, int col);
+astNode *astNewParamList(int line, int col);
+astNode *astNewParam(char *name, astDataType type, int line, int col);
 
-astNode *ast_newBlock(int line, int col);
-astNode *ast_newVarDecl(char *name, astDataType declType, astNode *value,
-						bool isMutable, int line, int col);
-astNode *ast_newAssign(astNode *target, astNode *value, int line, int col);
-astNode *ast_newReturn(astNode *value, int line, int col);
-astNode *ast_newWhile(astNode *cond, astNode *body, int line, int col);
-astNode *ast_newFor(char *iterName, int line, int col);
-astNode *ast_newIf(astNode *cond, astNode *thenBody, astNode *elseBody,
-				   int line, int col);
-astNode *ast_newExprStmt(astNode *expr, int line, int col);
+astNode *astNewBlock(int line, int col);
+astNode *astNewVarDecl(char *name, astDataType declType, astNode *value,
+					   bool isMutable, int line, int col);
+astNode *astNewAssign(astNode *target, astNode *value, int line, int col);
+astNode *astNewReturn(astNode *value, int line, int col);
+astNode *astNewWhile(astNode *cond, astNode *body, int line, int col);
+astNode *astNewFor(char *iterName, int line, int col);
+astNode *astNewIf(astNode *cond, astNode *thenBody, astNode *elseBody, int line,
+				  int col);
+astNode *astNewExprStmt(astNode *expr, int line, int col);
 
-astNode *ast_newIntLit(long long value, int line, int col);
-astNode *ast_newDoubleLit(double value, int line, int col);
-astNode *ast_newStringLit(char *value, int line, int col);
-astNode *ast_newBoolLit(bool value, int line, int col);
-astNode *ast_newUnitLit(int line, int col);
-astNode *ast_newIdentifier(char *name, int line, int col);
-astNode *ast_newBinary(specTokenType op, astNode *left, astNode *right,
-					   int line, int col);
-astNode *ast_newUnary(specTokenType op, astNode *operand, int line, int col);
-astNode *ast_newCall(astNode *callee, int line, int col);
-astNode *ast_newMember(astNode *object, char *name, int line, int col);
-astNode *ast_newInterp(int line, int col);
+astNode *astNewIntLit(long long value, int line, int col);
+astNode *astNewDoubleLit(double value, int line, int col);
+astNode *astNewStringLit(char *value, int line, int col);
+astNode *astNewBoolLit(bool value, int line, int col);
+astNode *astNewUnitLit(int line, int col);
+astNode *astNewIdentifier(char *name, int line, int col);
+astNode *astNewBinary(specTokenType op, astNode *left, astNode *right, int line,
+					  int col);
+astNode *astNewUnary(specTokenType op, astNode *operand, int line, int col);
+astNode *astNewCall(astNode *callee, int line, int col);
+astNode *astNewMember(astNode *object, char *name, int line, int col);
+astNode *astNewInterp(int line, int col);
 
-astDataType ast_typeFromToken(specTokenType specType);
+astDataType astTypeFromToken(specTokenType specType);
 
 #endif

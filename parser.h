@@ -12,6 +12,10 @@
 #include "ast.h"
 #include "stack.h"
 
+/**
+ * @brief Parser struct that is created in the beginning of the syntax
+ * 		  analysis cycle
+ */
 typedef struct {
 	token current;
 	astNode **unattached;
@@ -21,6 +25,9 @@ typedef struct {
 	bool active;
 } parserState;
 
+/**
+ * @brief Precedence table indexes, worded for better usage
+ */
 typedef enum {
 	PREC_ADD,
 	PREC_SUB,

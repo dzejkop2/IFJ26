@@ -14,7 +14,7 @@ static const char *absName(absTokenType t) {
         case abs_position:   return "position";
         case abs_control:    return "control";
         case abs_reserved:   return "reserved";
-        case abs_interp:     return "interp";
+        case abs_intp:     return "interp";
         default:             return "???";
     }
 }
