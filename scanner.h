@@ -23,7 +23,7 @@ typedef enum {
 	abs_position,
 	abs_control,
 	abs_reserved,
-	abs_interp,
+	abs_intp,
 } absTokenType;
 
 /**
@@ -143,6 +143,14 @@ typedef struct {
 	int col;
 } token;
 
+/**
+ * @brief Struct that holds whole source and current reading position
+ * @param loadedInput buffer with whole source code
+ * @param lenght      number of loaded characters
+ * @param pos         index of current character in loadedInput
+ * @param col         current column position in source code
+ * @param line        current line position in source code
+ */
 typedef struct {
 	char *loadedInput;
 	size_t lenght;
@@ -151,12 +159,21 @@ typedef struct {
 	int line;
 } stdInput;
 
+/**
+ * @brief Struct that represents one entry of keywords array
+ * @param word     keyword string
+ * @param absType  abstract type of the keyword token
+ * @param specType specific type of the keyword token
+ */
 typedef struct {
 	const char *word;
 	absTokenType absType;
 	specTokenType specType;
 } keyword;
 
+/**
+ * @brief Identifies states of lexer finite state machine
+ */
 typedef enum {
 	// start state
 	STATE_START,
@@ -218,10 +235,10 @@ typedef enum {
 	STATE_PIPE,
 
 	// interpolates
-	STATE_INTERP_BODY,
-	STATE_INTERP_DOLLAR,
-	STATE_INTERP_ESCAPE,
-	STATE_INTERP_ID,
+	STATE_INTP_BODY,
+	STATE_INTP_DOLLAR,
+	STATE_INTP_ESCAPE,
+	STATE_INTP_ID,
 
 	// others
 	STATE_SIGN,
@@ -233,10 +250,13 @@ typedef enum {
 	STATE_EOF
 } states;
 
-// interpolates modes
+/**
+ * @brief Identifies modes that are stored on modeStack (normal code,
+ * interpolated string, expression inside ${})
+ */
 typedef enum {
 	MODE_INTERP,
-	MODE_INTERP_MULTI,
+	MODE_INTP_MULTI,
 	MODE_EXPR,
 	MODE_NORMAL,
 } mode;

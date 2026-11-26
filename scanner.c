@@ -1,9 +1,16 @@
 /**
  * @name ifj26
  * @authors Marek Rzeszoto (xrzeszm00)
- * @file scanner.peekerHelper
+ * @file scanner.c
+ *
+ * AI usage:
+ * Consultations and brainstorming about lexer design (indentation handling,
+ * interpolated strings, mode stack), debugging failing tests, writing tests,
+ * reviewing and improving comments. "Check if my lexer finite state machine
+ * matches the specification" "Generate a large set of tests for the scanner
+ * covering all token types, edge cases and lexical errors (exit code 1)" "Write
+ * me a comment for this function"
  */
-
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -75,6 +82,11 @@ const keyword keywords[] = {{"import", abs_keyword, kw_import},
 static mode modeStack[MODE_STACK_MAX];
 static int modeTop = 0;
 
+/**
+ * @brief Stack algorithm modePush - pushes modeHelper on top of modeStack
+ *
+ * @param modeHelper mode that is pushed on top of the stack
+ */
 void modePush(mode modeHelper) {
 	if (modeTop >= MODE_STACK_MAX) {
 		error(INTERNAL_ERROR, "Interpolation nesting too deep");
@@ -82,18 +94,33 @@ void modePush(mode modeHelper) {
 	modeStack[modeTop++] = modeHelper;
 }
 
+/**
+ * @brief Stack algorithm modePop - removes the top value of modeStack by
+ * decreasing modeTop
+ *
+ * The bottom MODE_NORMAL is never removed.
+ */
 void modeInit(void) {
 	modeTop = 0;
 	modePush(MODE_NORMAL);
 }
 
+/**
+ * @brief Stack algorithm modePop - makes a pop of the top value by trucking
+ * down modeTop value and decresing it
+ */
 void modePop(void) {
 	if (modeTop > 1) {
 		modeTop--;
 	}
 }
 
-mode modeCur(void) { return modeStack[modeTop - 1]; }
+/**
+ * @brief Stack algorithm modeCurr - returns top value
+ *
+ * @return current top value
+ */
+mode modeCurr(void) { return modeStack[modeTop - 1]; }
 
 int idType(int typeHelper) {
 	if ((typeHelper >= 'a' && typeHelper <= 'z') ||
@@ -108,6 +135,12 @@ int idType(int typeHelper) {
 	}
 }
 
+/**
+ * @brief Helper function that reallocates memory of input, initialise other
+ * input parts to starting values
+ *
+ * @param sourceFile poiter to source file
+ */
 void loadInput(FILE *sourceFile) {
 	size_t reallocHelperCapacity = REALLOC_MEM;
 	input.loadedInput = malloc(reallocHelperCapacity);
@@ -118,7 +151,6 @@ void loadInput(FILE *sourceFile) {
 	input.pos = 0;
 	input.line = 1;
 	input.col = 1;
-
 	int count = 0;
 	while ((count = fread(input.loadedInput + input.lenght, sizeof(char),
 						  reallocHelperCapacity - input.lenght, sourceFile)) >
@@ -137,6 +169,14 @@ void loadInput(FILE *sourceFile) {
 	}
 }
 
+/**
+ * @brief Function that takes and argument and peek ahead of curr position to a
+ * loadedInput
+ *
+ * @param offset value that is used to peek ahead of curr position
+ * @return value of integer that is changed to unsigned char, if there is an EOF
+ * than -1
+ */
 int bufferPeeker(int offset) {
 	if ((input.pos + offset) >= input.lenght) {
 		return EOF;
@@ -145,6 +185,13 @@ int bufferPeeker(int offset) {
 	}
 }
 
+/**
+ * @brief Helper function that calls bufferPeeker() and handles returning
+ * values, moves input position and updates line and col
+ *
+ * @return if there is an EOF than -1, else integer representation of returning
+ * char
+ */
 int bufferAdvance(void) {
 	int peekHelper = bufferPeeker(0);
 	if (peekHelper == EOF) {
@@ -160,11 +207,15 @@ int bufferAdvance(void) {
 	return peekHelper;
 }
 
+/**
+ * @brief Function that initialise values and calling init parts of heleper
+ * functions that are neccessery for running a scanner itself
+ */
 void scannerInit(void) {
-	static int atexitTriggered = 0;
-	if (!atexitTriggered) {
+	static int atExitTriggered = 0;
+	if (!atExitTriggered) {
 		atexit(scannerFree);
-		atexitTriggered = 1;
+		atExitTriggered = 1;
 	}
 	loadInput(stdin);
 	dynStr_ctor(&dynStr);
@@ -178,6 +229,12 @@ void scannerInit(void) {
 	modeInit();
 }
 
+/**
+ * @brief Main logic function that is implemntation of lexer finite state
+ * machine
+ *
+ * @return the next token with its position, abs_type, specType or keyword type
+ */
 token getTokenChecked(void) {
 	states state = STATE_START;
 	states returnState = STATE_START;
@@ -207,12 +264,12 @@ token getTokenChecked(void) {
 		return makeToken(helpToken);
 	}
 
-	switch (modeCur()) {
+	switch (modeCurr()) {
 	case MODE_INTERP:
-	case MODE_INTERP_MULTI:
+	case MODE_INTP_MULTI:
 		helpToken.line = input.line;
 		helpToken.col = input.col;
-		state = STATE_INTERP_BODY;
+		state = STATE_INTP_BODY;
 		break;
 	case MODE_NORMAL:
 	case MODE_EXPR:
@@ -231,7 +288,7 @@ token getTokenChecked(void) {
 				currentSign == '\r') {
 				bufferAdvance();
 			} else if (currentSign == EOF) {
-				if (modeCur() != MODE_NORMAL) {
+				if (modeCurr() != MODE_NORMAL) {
 					error(LEXICAL_ERROR, "Unterminated interpolated string");
 				}
 				helpToken.absType = abs_position;
@@ -284,12 +341,12 @@ token getTokenChecked(void) {
 				helpToken.specType = br_end;
 				return makeToken(helpToken);
 			} else if (currentSign == '}') {
-				if (modeCur() != MODE_EXPR) {
+				if (modeCurr() != MODE_EXPR) {
 					error(LEXICAL_ERROR, "Unexpected '}'");
 				}
 				bufferAdvance();
 				modePop();
-				helpToken.absType = abs_interp;
+				helpToken.absType = abs_intp;
 				helpToken.specType = intp_exprEnd;
 				return makeToken(helpToken);
 			} else if (currentSign == ',') {
@@ -374,11 +431,11 @@ token getTokenChecked(void) {
 					if (bufferPeeker(0) == '"' && bufferPeeker(1) == '"') {
 						bufferAdvance();
 						bufferAdvance();
-						modePush(MODE_INTERP_MULTI);
+						modePush(MODE_INTP_MULTI);
 					} else {
 						modePush(MODE_INTERP);
 					}
-					helpToken.absType = abs_interp;
+					helpToken.absType = abs_intp;
 					helpToken.specType = intp_begin;
 					return makeToken(helpToken);
 				}
@@ -648,7 +705,7 @@ token getTokenChecked(void) {
 				returnState = STATE_NEWLINE;
 				state = STATE_BLOCKCOMMENT_MID;
 			} else {
-				if (modeCur() != MODE_NORMAL) {
+				if (modeCurr() != MODE_NORMAL) {
 					error(LEXICAL_ERROR,
 						  "Newline inside interpolated expression");
 				}
@@ -923,8 +980,8 @@ token getTokenChecked(void) {
 			return makeString(helpToken);
 
 		// interpolated strings
-		case STATE_INTERP_BODY: {
-			int currMulti = (modeCur() == MODE_INTERP_MULTI);
+		case STATE_INTP_BODY: {
+			int currMulti = (modeCurr() == MODE_INTP_MULTI);
 			int multiEnd;
 			if (currentSign == EOF || (!currMulti && currentSign == '\n')) {
 				error(LEXICAL_ERROR, "Unterminated interpolated string");
@@ -939,7 +996,7 @@ token getTokenChecked(void) {
 					storeSign();
 					intpLen++;
 				} else if (intpLen > 0) {
-					helpToken.absType = abs_interp;
+					helpToken.absType = abs_intp;
 					helpToken.specType = intp_part;
 					helpToken.value.word = dynStr_output(&dynStr);
 					return makeToken(helpToken);
@@ -950,7 +1007,7 @@ token getTokenChecked(void) {
 						bufferAdvance();
 					}
 					modePop();
-					helpToken.absType = abs_interp;
+					helpToken.absType = abs_intp;
 					helpToken.specType = intp_end;
 					return makeToken(helpToken);
 				}
@@ -961,7 +1018,7 @@ token getTokenChecked(void) {
 					dynStr_load(&dynStr, '$');
 					intpLen++;
 				} else if (intpLen > 0) {
-					helpToken.absType = abs_interp;
+					helpToken.absType = abs_intp;
 					helpToken.specType = intp_part;
 					helpToken.value.word = dynStr_output(&dynStr);
 					return makeToken(helpToken);
@@ -969,11 +1026,11 @@ token getTokenChecked(void) {
 					bufferAdvance();
 					helpToken.line = input.line;
 					helpToken.col = input.col;
-					state = STATE_INTERP_DOLLAR;
+					state = STATE_INTP_DOLLAR;
 				}
 			} else if (currentSign == '\\' && !currMulti) {
 				bufferAdvance();
-				state = STATE_INTERP_ESCAPE;
+				state = STATE_INTP_ESCAPE;
 			} else {
 				storeSign();
 				intpLen++;
@@ -981,7 +1038,7 @@ token getTokenChecked(void) {
 			break;
 		}
 
-		case STATE_INTERP_ESCAPE:
+		case STATE_INTP_ESCAPE:
 			if (currentSign == 'n') {
 				dynStr_load(&dynStr, '\n');
 			} else if (currentSign == 'r') {
@@ -995,26 +1052,26 @@ token getTokenChecked(void) {
 			}
 			bufferAdvance();
 			intpLen++;
-			state = STATE_INTERP_BODY;
+			state = STATE_INTP_BODY;
 			break;
 
-		case STATE_INTERP_DOLLAR:
+		case STATE_INTP_DOLLAR:
 			if (currentSign == '{') {
 				bufferAdvance();
 				modePush(MODE_EXPR);
-				helpToken.absType = abs_interp;
+				helpToken.absType = abs_intp;
 				helpToken.specType = intp_exprBegin;
 				return makeToken(helpToken);
 			} else if (idType(currentSign) == 1 || idType(currentSign) == 3) {
 				storeSign();
-				state = STATE_INTERP_ID;
+				state = STATE_INTP_ID;
 			} else {
 				error(LEXICAL_ERROR,
 					  "Expected '$', '{' or identifier after '$'");
 			}
 			break;
 
-		case STATE_INTERP_ID:
+		case STATE_INTP_ID:
 			if (idType(currentSign) != 0) {
 				storeSign();
 			} else {
@@ -1037,6 +1094,12 @@ token getTokenChecked(void) {
 	}
 }
 
+/**
+ * @brief Helper function that returns the next token - stored in peeked until
+ * getToken() is called
+ *
+ * @return the next token from the input
+ */
 token peekToken(void) {
 	if (!hasPeeked) {
 		peeked = getTokenChecked();
@@ -1045,6 +1108,12 @@ token peekToken(void) {
 	return peeked;
 }
 
+/**
+ * @brief Main function for getting tokens if it has peeked token, it returns it
+ * and clears hasPeeked, else it calls getTokenChecked().
+ *
+ * @return the next token from the input
+ */
 token getToken(void) {
 	if (hasPeeked) {
 		hasPeeked = 0;
@@ -1053,6 +1122,12 @@ token getToken(void) {
 	return getTokenChecked();
 }
 
+/**
+ * @brief Helper function that creates a final token from helpToken properties
+ *
+ * @param helpToken struct that holds properties of current token
+ * @return new token
+ */
 token makeToken(token helpToken) {
 	token newToken;
 	newToken.absType = helpToken.absType;
@@ -1064,14 +1139,23 @@ token makeToken(token helpToken) {
 	if (newToken.specType == ps_newLine || newToken.specType == ps_indent ||
 		newToken.specType == ps_dedent) {
 		lastWasNL = 1;
-	} else if (newToken.specType != ps_eof){
+	} else if (newToken.specType != ps_eof) {
 		lastWasNL = 0;
 	}
 	return newToken;
 }
 
+/**
+ * @brief Helper function that stores current character into dynStr
+ */
 void storeSign(void) { dynStr_load(&dynStr, (char)bufferAdvance()); }
 
+/**
+ * @brief Stack algorithm indentPush - pushes indent level on top of indentStack
+ * and handles realocation of memory
+ *
+ * @param spaces number of spaces of the new indentation level
+ */
 void indentPush(int spaces) {
 	if (indentTop == indentCapacity) {
 		size_t reallocHelperCapacity;
@@ -1093,6 +1177,16 @@ void indentPush(int spaces) {
 	indentTop++;
 }
 
+/**
+ * @brief Stack algorithm indentResolve - compares indent of a new line with the
+ * top of indentStack and schedules INDENT/DEDENT tokens
+ *
+ * If the indent is bigger, it is pushed on the stack and set(pendingIndent)
+ * If it is smaller, levels are popped and set(pendingDedent)
+ * If the indent then does not match with spaces, it is a lexical error
+ *
+ * @param spaces number of spaces at current measured line
+ */
 void indentResolve(int spaces) {
 	if (spaces > indentStack[indentTop - 1]) {
 		indentPush(spaces);
@@ -1108,6 +1202,16 @@ void indentResolve(int spaces) {
 	}
 }
 
+/**
+ * @brief Helper function that creates number token by assigning it correct
+ * absType, specType and value
+ *
+ * @param helpToken struct that holds properties of current token
+ * @param numType type of number literal (lit_int or lit_double) that decides
+ * how the stored lexeme is converted
+ * @return calls a makeToken() that uses the helpToken properties to create a
+ * token
+ */
 token makeNumber(token helpToken, specTokenType numType) {
 	char *word = dynStr_output(&dynStr);
 	helpToken.absType = abs_literal;
@@ -1121,6 +1225,14 @@ token makeNumber(token helpToken, specTokenType numType) {
 	return makeToken(helpToken);
 }
 
+/**
+ * @brief Helper function that creates string token by assinging it correct
+ * absType, specType and value
+ *
+ * @param helpToken struct that holds properties of current token
+ * @return calls a makeToken() that uses the helpToken properties to create a
+ * token
+ */
 token makeString(token helpToken) {
 	helpToken.absType = abs_literal;
 	helpToken.specType = lit_string;
@@ -1128,6 +1240,12 @@ token makeString(token helpToken) {
 	return makeToken(helpToken);
 }
 
+/**
+ * @brief Helper function that searches the keywords array for a given word
+ *
+ * @param word string that is compared with each keyword in the array
+ * @return pointer to the matching keyword entry, else NULL
+ */
 const keyword *findKeyword(const char *word) {
 	for (int keyWordHelper = 0; keywords[keyWordHelper].word != NULL;
 		 keyWordHelper++) {
@@ -1138,11 +1256,17 @@ const keyword *findKeyword(const char *word) {
 	return NULL;
 }
 
+/**
+ * @brief Memory helper function that free space of loadedInput value
+ */
 void scanner_dtor(void) {
 	free(input.loadedInput);
 	input.loadedInput = NULL;
 }
 
+/**
+ * @brief Memory helper function that free all space of whole scanner itself
+ */
 void scannerFree(void) {
 	if (scannerActive == 0) {
 		return;
@@ -1165,6 +1289,13 @@ void scannerFree(void) {
 	parenDepth = 0;
 }
 
+/**
+ * @brief Memory helper function that frees value.word of tokens that own it
+ * (id_idtName, intp_part, lit_string)
+ *
+ * @param heapUsingToken Pointer to the token whose memory is freed (id_idtName,
+ * intp_part, lit_string)
+ */
 void tokenFree(token *heapUsingToken) {
 	if (heapUsingToken->specType == id_idtName ||
 		heapUsingToken->specType == intp_part ||
