@@ -266,10 +266,10 @@ token getTokenChecked(void) {
 
 	switch (modeCurr()) {
 	case MODE_INTERP:
-	case MODE_INTERP_MULTI:
+	case MODE_INTP_MULTI:
 		helpToken.line = input.line;
 		helpToken.col = input.col;
-		state = STATE_INTERP_BODY;
+		state = STATE_INTP_BODY;
 		break;
 	case MODE_NORMAL:
 	case MODE_EXPR:
@@ -431,7 +431,7 @@ token getTokenChecked(void) {
 					if (bufferPeeker(0) == '"' && bufferPeeker(1) == '"') {
 						bufferAdvance();
 						bufferAdvance();
-						modePush(MODE_INTERP_MULTI);
+						modePush(MODE_INTP_MULTI);
 					} else {
 						modePush(MODE_INTERP);
 					}
@@ -980,8 +980,8 @@ token getTokenChecked(void) {
 			return makeString(helpToken);
 
 		// interpolated strings
-		case STATE_INTERP_BODY: {
-			int currMulti = (modeCurr() == MODE_INTERP_MULTI);
+		case STATE_INTP_BODY: {
+			int currMulti = (modeCurr() == MODE_INTP_MULTI);
 			int multiEnd;
 			if (currentSign == EOF || (!currMulti && currentSign == '\n')) {
 				error(LEXICAL_ERROR, "Unterminated interpolated string");
@@ -1026,11 +1026,11 @@ token getTokenChecked(void) {
 					bufferAdvance();
 					helpToken.line = input.line;
 					helpToken.col = input.col;
-					state = STATE_INTERP_DOLLAR;
+					state = STATE_INTP_DOLLAR;
 				}
 			} else if (currentSign == '\\' && !currMulti) {
 				bufferAdvance();
-				state = STATE_INTERP_ESCAPE;
+				state = STATE_INTP_ESCAPE;
 			} else {
 				storeSign();
 				intpLen++;
@@ -1038,7 +1038,7 @@ token getTokenChecked(void) {
 			break;
 		}
 
-		case STATE_INTERP_ESCAPE:
+		case STATE_INTP_ESCAPE:
 			if (currentSign == 'n') {
 				dynStr_load(&dynStr, '\n');
 			} else if (currentSign == 'r') {
@@ -1052,10 +1052,10 @@ token getTokenChecked(void) {
 			}
 			bufferAdvance();
 			intpLen++;
-			state = STATE_INTERP_BODY;
+			state = STATE_INTP_BODY;
 			break;
 
-		case STATE_INTERP_DOLLAR:
+		case STATE_INTP_DOLLAR:
 			if (currentSign == '{') {
 				bufferAdvance();
 				modePush(MODE_EXPR);
@@ -1064,14 +1064,14 @@ token getTokenChecked(void) {
 				return makeToken(helpToken);
 			} else if (idType(currentSign) == 1 || idType(currentSign) == 3) {
 				storeSign();
-				state = STATE_INTERP_ID;
+				state = STATE_INTP_ID;
 			} else {
 				error(LEXICAL_ERROR,
 					  "Expected '$', '{' or identifier after '$'");
 			}
 			break;
 
-		case STATE_INTERP_ID:
+		case STATE_INTP_ID:
 			if (idType(currentSign) != 0) {
 				storeSign();
 			} else {
