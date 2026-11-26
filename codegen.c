@@ -17,71 +17,64 @@ static void generateExtension(astNode *node);
 static void generateNode(astNode *node);
 static void generateDeclarations(astNode *node);
 static const char *getBuiltinExtensionLabel(astDataType receiverType,
-    const char *name);
+											const char *name);
 
 static size_t labelCounter;
 static astDataType returnType;
 
 static astNode *programRoot = NULL;
 
-
 static int isZeroListFunction(astNode *node) {
-    if (programRoot == NULL || node == NULL ||
-        node->type != AST_IDENTIFIER)
-        return 0;
+	if (programRoot == NULL || node == NULL || node->type != AST_IDENTIFIER)
+		return 0;
 
-    astNodeList defs = programRoot->data.program.defs;
+	astNodeList defs = programRoot->data.program.defs;
 
-    for (size_t i = 0; i < defs.count; i++) {
-        astNode *def = defs.items[i];
+	for (size_t i = 0; i < defs.count; i++) {
+		astNode *def = defs.items[i];
 
-        if (def == NULL || def->type != AST_FUN_DEF)
-            continue;
+		if (def == NULL || def->type != AST_FUN_DEF)
+			continue;
 
-        if (strcmp(def->data.funcDef.name,
-                   node->data.identifier.name) == 0 &&
-            def->scopeId == node->scopeId &&
-            def->data.funcDef.paramLists.count == 0) {
-            return 1;
-        }
-    }
+		if (strcmp(def->data.funcDef.name, node->data.identifier.name) == 0 &&
+			def->scopeId == node->scopeId &&
+			def->data.funcDef.paramLists.count == 0) {
+			return 1;
+		}
+	}
 
-    return 0;
+	return 0;
 }
-
 
 static void generateVariableName(const char *name, int scopeId) {
 	printf("LF@%s$%d", name, scopeId);
 }
 
 static const char *builtinNames[] = {
-	"print",	 "readLine", "readInt", "readDouble", "toStr",		 "toInt",
+	"print",	 "readLine", "readInt", "readDouble", "toStr",		"toInt",
 	"strLength", "subStr",	 "ord",		"chr",		  "readBoolean"};
 
 #include <string.h>
 
-static const char *getBuiltinExtensionLabel(
-    astDataType receiverType,
-    const char *name
-) {
-    if (strcmp(name, "toString") == 0) {
-        return "$$toStr";
-    }
+static const char *getBuiltinExtensionLabel(astDataType receiverType,
+											const char *name) {
+	if (strcmp(name, "toString") == 0) {
+		return "$$toStr";
+	}
 
-    if (receiverType == TYPE_DOUBLE) {
-        if (strcmp(name, "toInt") == 0)
-            return "$$toInt";
+	if (receiverType == TYPE_DOUBLE) {
+		if (strcmp(name, "toInt") == 0)
+			return "$$toInt";
 
-        if (strcmp(name, "floor") == 0)
-            return "$$floor";
-    }
+		if (strcmp(name, "floor") == 0)
+			return "$$floor";
+	}
 
-    if (receiverType == TYPE_STRING &&
-        strcmp(name, "length") == 0) {
-        return "$$strLength";
-    }
+	if (receiverType == TYPE_STRING && strcmp(name, "length") == 0) {
+		return "$$strLength";
+	}
 
-    return NULL;
+	return NULL;
 }
 
 static void generateDeclarationList(astNodeList list) {
@@ -194,8 +187,7 @@ static void generateFunction(astNode *node, astNode *receiver) {
 		}
 	}
 	if (receiver != NULL) {
-		printf("DEFVAR LF@%s$%d\n", receiver->data.param.name,
-			   node->scopeId);
+		printf("DEFVAR LF@%s$%d\n", receiver->data.param.name, node->scopeId);
 
 		printf("POPS LF@%s$%d\n", receiver->data.param.name, node->scopeId);
 	}
@@ -216,20 +208,20 @@ static void generateFunction(astNode *node, astNode *receiver) {
 }
 
 static void generateCallArguments(astNode *node) {
-    if (node == NULL || node->type != AST_CALL)
-        return;
+	if (node == NULL || node->type != AST_CALL)
+		return;
 
-    if (node->data.call.callee != NULL &&
-        node->data.call.callee->type == AST_CALL) {
-        generateCallArguments(node->data.call.callee);
-    }
+	if (node->data.call.callee != NULL &&
+		node->data.call.callee->type == AST_CALL) {
+		generateCallArguments(node->data.call.callee);
+	}
 
-    for (size_t i = 0; i < node->data.call.args.count; i++) {
-        astNode *arg = node->data.call.args.items[i];
-        generateNode(arg);
-        if (arg->intToDouble)
-            printf("INT2FLOATS\n");
-    }
+	for (size_t i = 0; i < node->data.call.args.count; i++) {
+		astNode *arg = node->data.call.args.items[i];
+		generateNode(arg);
+		if (arg->intToDouble)
+			printf("INT2FLOATS\n");
+	}
 }
 
 static void generateNode(astNode *node) {
@@ -279,17 +271,14 @@ static void generateNode(astNode *node) {
 			printf("CALL fun$%s\n", node->data.identifier.name);
 		} else {
 			/* fprintf(stderr, "[CODEGEN] %s -> scope %d\n",
-            node->data.identifier.name,
-            node->scopeId); */
+			node->data.identifier.name,
+			node->scopeId); */
 			printf("PUSHS ");
-			generateVariableName(
-				node->data.identifier.name,
-				node->scopeId
-			);
+			generateVariableName(node->data.identifier.name, node->scopeId);
 			putchar('\n');
 		}
-		
-    	break;
+
+		break;
 	case AST_VAR_DECL:
 		generateNode(node->data.varDecl.value);
 		if (node->data.varDecl.declType == TYPE_DOUBLE &&
@@ -313,21 +302,19 @@ static void generateNode(astNode *node) {
 		generateNode(node->data.exprStmt.expr);
 		break;
 	case AST_RETURN: {
-        generateNode(node->data.ret.value);
+		generateNode(node->data.ret.value);
 
-        if (returnType == TYPE_UNIT) {
-            printf("POPS LF@%%discard\n");
-            printf("PUSHS nil@nil\n");
-        }
-        else if (returnType == TYPE_DOUBLE &&
-                node->data.ret.value != NULL &&
-                node->data.ret.value->dataType == TYPE_INT) {
-            printf("INT2FLOATS\n");
-        }
+		if (returnType == TYPE_UNIT) {
+			printf("POPS LF@%%discard\n");
+			printf("PUSHS nil@nil\n");
+		} else if (returnType == TYPE_DOUBLE && node->data.ret.value != NULL &&
+				   node->data.ret.value->dataType == TYPE_INT) {
+			printf("INT2FLOATS\n");
+		}
 
-        printf("POPFRAME\nRETURN\n");
-        break;
-    }
+		printf("POPFRAME\nRETURN\n");
+		break;
+	}
 	case AST_IF: {
 		size_t label = labelCounter++;
 		generateNode(node->data.ifStmt.cond);
@@ -443,7 +430,6 @@ static void generateNode(astNode *node) {
 		printf("POPS LF@%s$%d\n", iterName, scopeId);
 
 		printf("JUMP $$for$%zu\n", label);
-		
 
 		printf("LABEL $$endfor$%zu\n", label);
 
@@ -524,81 +510,70 @@ static void generateNode(astNode *node) {
 		}
 		break;
 	}
-	
 
 	case AST_CALL: {
-    astNode *callee = node;
+		astNode *callee = node;
 
-    while (callee != NULL && callee->type == AST_CALL) {
-        callee = callee->data.call.callee;
-    }
+		while (callee != NULL && callee->type == AST_CALL) {
+			callee = callee->data.call.callee;
+		}
 
-    if (callee == NULL) {
-        error(INTERNAL_ERROR, "Missing call target");
-    }
+		if (callee == NULL) {
+			error(INTERNAL_ERROR, "Missing call target");
+		}
 
-    if (callee->type == AST_MEMBER) {
-        astNode *object = callee->data.member.object;
-        const char *name = callee->data.member.name;
+		if (callee->type == AST_MEMBER) {
+			astNode *object = callee->data.member.object;
+			const char *name = callee->data.member.name;
 
-        generateNode(object);
+			generateNode(object);
 
-        generateCallArguments(node);
+			generateCallArguments(node);
 
-        const char *label = getBuiltinExtensionLabel(
-            object->dataType,
-            name
-        );
+			const char *label =
+				getBuiltinExtensionLabel(object->dataType, name);
 
-        if (label != NULL) {
-            printf("CALL %s\n", label);
-        } else {
-            printf("CALL fun$ext$%d$%s\n",
-                   (int)object->dataType,
-                   name);
-        }
-    }
-    else if (callee->type == AST_IDENTIFIER) {
-        generateCallArguments(node);
+			if (label != NULL) {
+				printf("CALL %s\n", label);
+			} else {
+				printf("CALL fun$ext$%d$%s\n", (int)object->dataType, name);
+			}
+		} else if (callee->type == AST_IDENTIFIER) {
+			generateCallArguments(node);
 
-        const char *name = callee->data.identifier.name;
-        const char *prefix = "fun$";
+			const char *name = callee->data.identifier.name;
+			const char *prefix = "fun$";
 
-        for (size_t i = 0;
-             i < sizeof(builtinNames) / sizeof(*builtinNames);
-             i++) {
+			for (size_t i = 0; i < sizeof(builtinNames) / sizeof(*builtinNames);
+				 i++) {
 
-            if (strcmp(name, builtinNames[i]) == 0) {
-                prefix = "$$";
-                break;
-            }
-        }
+				if (strcmp(name, builtinNames[i]) == 0) {
+					prefix = "$$";
+					break;
+				}
+			}
 
-        printf("CALL %s%s\n", prefix, name);
-    }
-    else {
-        error(INTERNAL_ERROR, "Unsupported callee type");
-    }
+			printf("CALL %s%s\n", prefix, name);
+		} else {
+			error(INTERNAL_ERROR, "Unsupported callee type");
+		}
 
-    break;
-}
+		break;
+	}
 
 	case AST_MEMBER: {
 		astNode *object = node->data.member.object;
 
-		const char *label = getBuiltinExtensionLabel(
-			object->dataType,
-			node->data.member.name
-		);
+		const char *label =
+			getBuiltinExtensionLabel(object->dataType, node->data.member.name);
 
 		generateNode(object);
 
 		if (label != NULL) {
 			printf("CALL %s\n", label);
 		} else {
-			printf("CALL fun$ext$%d$%s\n",
-				(int)object->dataType,
-				node->data.member.name);
+			printf("CALL fun$ext$%d$%s\n", (int)object->dataType,
+				   node->data.member.name);
 		}
 		break;
 	}
@@ -662,25 +637,25 @@ void generateCode(astNode *root) {
 
 	char *mainName = NULL;
 
-    for (size_t i = 0; i < root->data.program.defs.count; i++) {
+	for (size_t i = 0; i < root->data.program.defs.count; i++) {
 
-        astNode *def = root->data.program.defs.items[i];
+		astNode *def = root->data.program.defs.items[i];
 
-        if (def->type == AST_FUN_DEF) {
-            generateFunction(def, NULL);
-            if (def->data.funcDef.isMain) {
-                mainName = def->data.funcDef.name;
+		if (def->type == AST_FUN_DEF) {
+			generateFunction(def, NULL);
+			if (def->data.funcDef.isMain) {
+				mainName = def->data.funcDef.name;
 			}
 
-        } else if (def->type == AST_EXTENSION) {
-            generateExtension(def);
-        }
-    }
-    if (mainName == NULL) {
-        error(INTERNAL_ERROR, "Main function not found");
-    }
+		} else if (def->type == AST_EXTENSION) {
+			generateExtension(def);
+		}
+	}
+	if (mainName == NULL) {
+		error(INTERNAL_ERROR, "Main function not found");
+	}
 
-    printf("LABEL $$entry\n");
-    printf("CALL fun$%s\n",mainName);
-    printf("EXIT int@0\n");
+	printf("LABEL $$entry\n");
+	printf("CALL fun$%s\n", mainName);
+	printf("EXIT int@0\n");
 }

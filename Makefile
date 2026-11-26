@@ -3,7 +3,7 @@ CFLAGS = -std=c11 -Wall -Wextra -pedantic -O2
 FORMAT = clang-format
 FORMATFLAGS = --Werror --dry-run
 TARGET = ifj26
-SRCS = $(wildcard *.c) test/tokenDump.c test/astPrint.c
+SRCS = $(wildcard *.c)
 OBJS = $(SRCS:.c=.o)
 
 .PHONY: build check check-file build-check clean
@@ -16,7 +16,7 @@ $(TARGET): $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-HDRS = $(wildcard *.h) $(wildcard test/*.h)
+HDRS = $(wildcard *.h)
 
 check:
 	$(FORMAT) $(FORMATFLAGS) $(SRCS) $(HDRS)
